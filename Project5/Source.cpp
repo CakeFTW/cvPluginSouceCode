@@ -104,7 +104,7 @@ int main() {
 			break;
 		}
 
-		//imgOriginal = imread("blobs.jpg", CV_LOAD_IMAGE_COLOR);		
+	//	imgOriginal = imread("white.png", CV_LOAD_IMAGE_COLOR);		
 		
 		Mat rgbNorm(imgOriginal.rows, imgOriginal.cols, CV_8UC3);
 
@@ -153,7 +153,7 @@ int main() {
 			}
 		}
 
-		copyMakeBorder(thresImg, thresImg, GRIDSIZE, GRIDSIZE, GRIDSIZE, GRIDSIZE, BORDER_CONSTANT, 0);
+		copyMakeBorder(thresImg, thresImg, GRIDSIZE +1, GRIDSIZE +1 , GRIDSIZE +1 , GRIDSIZE +1 , BORDER_CONSTANT, 0);
 		
 		Mat element = getStructuringElement(MORPH_ELLIPSE, Size(3, 3), Point(2, 2));
 		morphologyEx(thresImg, thresImg, MORPH_DILATE, element );
@@ -170,10 +170,10 @@ int main() {
 
 		vector<glyphObj> blobs;
 		int col = 245;
-		for (int i = GRIDSIZE; i < nRows-GRIDSIZE; i += GRIDSIZE) {
+		for (int i = GRIDSIZE + 1; i < nRows-GRIDSIZE - 1; i += GRIDSIZE) {
 			p = thresImg.ptr<uchar>(i);
 			for (int j = GRIDSIZE; j < nCols-GRIDSIZE; j += GRIDSIZE) {
-				if (p[j+2] == 255) {
+				if (p[j] == 255) {
 					glyphObj currentBlob;
 					currentBlob.nr = col;
 					dropFire(p + j, currentBlob, nCols, i , j);
@@ -193,8 +193,8 @@ int main() {
 
 		//printing out objects
 		int counter = 0;
-		int minSize = 500/GRIDSIZE;
-		int maxSize = 6000/GRIDSIZE;
+		int minSize = 400/GRIDSIZE;
+		int maxSize = 4000/GRIDSIZE;
 		for ( auto &i : blobs) {
 
 			//find center
@@ -219,7 +219,22 @@ int main() {
 			i.center.y = centerY; 
 			/*cout << centerX << endl;
 			cout << centerY << endl;*/
-			circle(imgOriginal, Point(centerX, centerY), 50, Scalar(0, 0, 255), 5);
+			circle(imgOriginal, Point(centerX-GRIDSIZE, centerY-GRIDSIZE), 50, Scalar(0, 0, 255), 5);
+
+			//find closest pixel
+			int ClosesDist = 10000;
+			int dist = 10000;
+			for (auto &v : i.list) {
+				dist = (v.x - i.center.x) * (v.x - i.center.x) + (v.y - i.center.y) * (v.y - i.center.y);
+				if (dist < ClosesDist) {
+					ClosesDist = dist;
+					i.rotation = v;
+				}
+			}
+			i.rotation.x = i.rotation.x - i.center.x;
+			i.rotation.y = i.rotation.y - i.center.y;
+			line(imgOriginal, Point(i.center.x-GRIDSIZE, i.center.y-GRIDSIZE), Point(i.center.x + 4*i.rotation.x-GRIDSIZE, i.center.y + 4*i.rotation.y-GRIDSIZE), Scalar(0, 255, 0), 3);
+			
 		}
 		if (counter != 0) {
 			cout << "nr of objects : " << counter << "off :" << blobs.size() << endl;
