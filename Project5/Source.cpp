@@ -2,10 +2,16 @@
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
 
-const int GRIDSIZE = 1;
-
 using namespace std;
 using namespace cv;
+
+const int GRIDSIZE = 1;
+
+int blue = 0;
+int green = 0;
+int red = 227;
+
+void createTrackBars();
 
 struct cVector {
 	uint x;
@@ -65,31 +71,8 @@ int main() {
 		return -1;
 	}
 	
-	namedWindow("Control", CV_WINDOW_AUTOSIZE); //create a window called "Control"
-												/*
-	int iLowH = 0;
-	int iHighH = 179;
+	createTrackBars();
 
-	int iLowS = 0;
-	int iHighS = 255;
-
-
-	//Create trackbars in "Control" window
-	cvCreateTrackbar("LowH", "Control", &iLowH, 179); //Hue (0 - 179)
-	cvCreateTrackbar("HighH", "Control", &iHighH, 179);
-
-	cvCreateTrackbar("LowS", "Control", &iLowS, 255); //Saturation (0 - 255)
-	cvCreateTrackbar("HighS", "Control", &iHighS, 255);
-	*/
-
-
-	int green= 0;
-	int red = 227;
-	
-
-	cvCreateTrackbar("R", "Control", &red, 255); //Value (0 - 255)
-	cvCreateTrackbar("G", "Control", &green, 255);
-	
 	cap.set( CV_CAP_PROP_FRAME_WIDTH, 640);
 	cap.set( CV_CAP_PROP_FRAME_HEIGHT, 480);
 	while (true)
@@ -256,4 +239,11 @@ int main() {
 
 
 	return 0;
+}
+
+void createTrackBars() {
+	namedWindow("Control", CV_WINDOW_AUTOSIZE);
+	cvCreateTrackbar("R", "Control", &red, 255);
+	cvCreateTrackbar("G", "Control", &green, 255);
+	cvCreateTrackbar("B", "Control", &blue, 255);
 }
