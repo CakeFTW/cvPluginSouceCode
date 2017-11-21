@@ -1,0 +1,6 @@
+﻿  Source.cpp
+c:\users\rasmus\source\repos\project5\project5\source.cpp(120): warning C4244: '=': conversion from 'int' to 'float', possible loss of data
+c:\users\rasmus\source\repos\project5\project5\source.cpp(187): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
+c:\users\rasmus\source\repos\project5\project5\source.cpp(199): warning C4244: '=': conversion from 'float' to 'long', possible loss of data
+c:\users\rasmus\source\repos\project5\project5\source.cpp(200): warning C4244: '=': conversion from 'float' to 'long', possible loss of data
+  Project5.vcxproj -> C:\Users\Rasmus\source\repos\Project5\x64\Debug\Project5.exe
