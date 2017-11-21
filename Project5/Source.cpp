@@ -2,6 +2,8 @@
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
 
+const int GRIDSIZE = 1;
+
 using namespace std;
 using namespace cv;
 
@@ -31,22 +33,21 @@ struct glyphObj {
 void dropFire(uchar * pixel, glyphObj &store, int width, int y, int x ) {
 	*pixel = store.nr;
 	store.list.push_back(cVector(x, y));
-	if (x < 0 || y < 0) {
-		cout << "WTF:::::" << x << " : " << y << endl;
+
+
+	if (*(pixel + GRIDSIZE) == 255) {
+		dropFire(pixel + GRIDSIZE, store,  width, y, x+GRIDSIZE);
 	}
-	if (*(pixel + 1) == 255) {
-		dropFire((pixel + 1), store,  width, y, x+1);
-	}
-	if(*(pixel + width) == 255){
-		dropFire(pixel + width, store, width, y +1, x);
-	}
-	
-	if (*(pixel - 1) == 255) {
-		dropFire((pixel - 1), store,  width, y , x -1);
+	if(*(pixel + (width*GRIDSIZE)) == 255){
+		dropFire(pixel + (width*GRIDSIZE), store, width, y +GRIDSIZE, x);
 	}
 	
-	if (*(pixel - width) == 255) {
-		dropFire(pixel - width, store, width, y-1 , x);
+	if (*(pixel - GRIDSIZE) == 255) {
+		dropFire(pixel - GRIDSIZE, store,  width, y , x -GRIDSIZE);
+	}
+	
+	if (*(pixel - (width*GRIDSIZE)) == 255) {
+		dropFire(pixel - (width*GRIDSIZE), store, width, y-GRIDSIZE , x);
 	}
 }
 
@@ -136,7 +137,8 @@ int main() {
 		nRows = rgbNorm.rows;
 		nCols = rgbNorm.cols;
 
-		
+
+
 		for (int i = 0; i < nRows; i++) {
 			p = rgbNorm.ptr<uchar>(i);
 			cp = thresImg.ptr<uchar>(i);
@@ -151,19 +153,26 @@ int main() {
 			}
 		}
 
-		copyMakeBorder(thresImg, thresImg, 3, 3, 3, 3, BORDER_CONSTANT, 0);
+		copyMakeBorder(thresImg, thresImg, GRIDSIZE, GRIDSIZE, GRIDSIZE, GRIDSIZE, BORDER_CONSTANT, 0);
 		
 		Mat element = getStructuringElement(MORPH_ELLIPSE, Size(3, 3), Point(2, 2));
 		morphologyEx(thresImg, thresImg, MORPH_DILATE, element );
 
+		//blob detection
 		nRows = thresImg.rows;
 		nCols = thresImg.cols;
 
+		//create lookuptable to get acces to each row;
+		uchar ** lut = new uchar*[nRows];
+		for (int i = 0; i < nRows; i++) {
+			*(lut + i) = thresImg.ptr<uchar>(i);
+		}
+
 		vector<glyphObj> blobs;
 		int col = 245;
-		for (int i = 1; i < nRows-1; i++) {
+		for (int i = GRIDSIZE; i < nRows-GRIDSIZE; i += GRIDSIZE) {
 			p = thresImg.ptr<uchar>(i);
-			for (int j = 1; j < nCols-1; j++) {
+			for (int j = GRIDSIZE; j < nCols-GRIDSIZE; j += GRIDSIZE) {
 				if (p[j+2] == 255) {
 					glyphObj currentBlob;
 					currentBlob.nr = col;
@@ -177,36 +186,46 @@ int main() {
 			}
 		}
 		
-		//blob detection
+		Mat thresImgHolder(nRows, nCols, CV_8UC1);
 		
-		//printing out objects
 
+		
+
+		//printing out objects
+		int counter = 0;
+		int minSize = 500/GRIDSIZE;
+		int maxSize = 6000/GRIDSIZE;
 		for ( auto &i : blobs) {
+
 			//find center
 			int size;
 			size = i.list.size();
-			if (size < 500 || size > 6000) { continue; }
+			if (size < minSize || size > maxSize) { continue; }
 			long centerX = 0;
 			long centerY = 0;
 			for (auto &v : i.list) {
 				centerX += v.x;
 				centerY += v.y;
+				thresImgHolder.at<uchar>(v.y, v.x) = i.nr;
 			}
-			cout << "new blob" << endl;
+			counter++;
+			/*cout << "new blob" << endl;
 			cout << size << endl;
 			cout << centerX << endl;
-			cout << centerY << endl;
+			cout << centerY << endl;*/
 			centerX = centerX / (float)size;
 			centerY = centerY / (float)size;
 			i.center.x = centerX;
 			i.center.y = centerY; 
-			cout << centerX << endl;
-			cout << centerY << endl;
+			/*cout << centerX << endl;
+			cout << centerY << endl;*/
 			circle(imgOriginal, Point(centerX, centerY), 50, Scalar(0, 0, 255), 5);
 		}
-	
+		if (counter != 0) {
+			cout << "nr of objects : " << counter << "off :" << blobs.size() << endl;
+		}
 		cv::imshow("original", imgOriginal);
-		cv::imshow("normalized", rgbNorm);
+		cv::imshow("normalized", thresImgHolder);
 		cv::imshow("thresholded", thresImg);
 
 		if (waitKey(30) == 27) //wait for 'esc' key press for 30ms. If 'esc' key is pressed, break loop
