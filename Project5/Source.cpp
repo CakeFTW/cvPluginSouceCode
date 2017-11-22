@@ -15,8 +15,8 @@ bool timeKeeping = true;
 void createTrackBars();
 
 struct cVector {
-	uint x;
-	uint y;
+	int x;
+	int y;
 	cVector(int _x, int _y) {
 		x = _x;
 		y = _y;
@@ -209,8 +209,13 @@ int main() {
 			int smallestX = 10000;
 			int largestY = 0;
 			int smallestY = 10000;
+			int radiusDist = 0;
 
 			for (auto &v : i.list) {
+				if (v.x < smallestX) { smallestX = v.x; }
+				if (v.x > largestX) { largestX = v.x; }
+				if (v.y < smallestY) { smallestY = v.y; }
+				if (v.y > largestY) { largestY = v.y; }
 				centerX += v.x;
 				centerY += v.y;
 			}
@@ -219,28 +224,43 @@ int main() {
 			cout << size << endl;
 			cout << centerX << endl;
 			cout << centerY << endl;*/
+		
+			cout << "radi dist " << radiusDist << endl;
 			centerX = centerX / (float)size;
 			centerY = centerY / (float)size;
+			radiusDist = ((float)((float)(largestX - centerX) + (centerX - smallestX) + (largestY - centerY)+(centerY - smallestY)))/4;
 			i.center.x = centerX;
 			i.center.y = centerY; 
 			/*cout << centerX << endl;
 			cout << centerY << endl;*/
-			circle(imgOriginal, Point(centerX-GRIDSIZE, centerY-GRIDSIZE), 50, Scalar(0, 0, 255), 5);
-
+			circle(imgOriginal, Point(centerX-GRIDSIZE, centerY-GRIDSIZE), radiusDist, Scalar(0, 0, 255), 5);
+			radiusDist = (float)radiusDist * 0.3;
+			radiusDist = radiusDist * radiusDist;
 			//find closest pixel
-			int ClosesDist = 10000;
 			int dist = 10000;
+			vector<cVector> points;
 			for (auto &v : i.list) {
 				dist = (v.x - i.center.x) * (v.x - i.center.x) + (v.y - i.center.y) * (v.y - i.center.y);
-				if (dist < ClosesDist) {
-					ClosesDist = dist;
-					i.rotation = v;
+				if (dist < radiusDist) {
+					points.push_back(v);
 				}
 			}
-			i.rotation.x = i.rotation.x - i.center.x;
-			i.rotation.y = i.rotation.y - i.center.y;
-			line(imgOriginal, Point(i.center.x-GRIDSIZE, i.center.y-GRIDSIZE), Point(i.center.x + 4*i.rotation.x-GRIDSIZE, i.center.y + 4*i.rotation.y-GRIDSIZE), Scalar(0, 255, 0), 3);
-			
+			i.rotation.x = 0;
+			i.rotation.y = 0;
+			for (auto &p : points) {
+				i.rotation.x += p.x-centerX;
+				i.rotation.y += p.y - centerY;
+			}
+			if (points.size() != 0) {
+				i.rotation.x = i.rotation.x / (float)points.size();
+				i.rotation.y = i.rotation.y / (float)points.size();
+
+				cout << "----ROTATION------" << endl;
+				cout << i.rotation.x << ":" << i.rotation.y << endl;
+
+				cout << "close points:" << points.size() << "withing" << radiusDist << endl;
+				line(imgOriginal, Point(i.center.x - GRIDSIZE, i.center.y - GRIDSIZE), Point(i.center.x + i.rotation.x - GRIDSIZE, i.center.y + i.rotation.y - GRIDSIZE), Scalar(0, 255, 0), 3);
+			}
 		}
 
 		if (timeKeeping) {
