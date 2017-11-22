@@ -11,6 +11,7 @@ int blue = 0;
 int green = 0;
 int red = 227;
 bool timeKeeping = true;
+const int discrimHW = 0.6;
 
 void createTrackBars();
 
@@ -80,9 +81,9 @@ int main() {
 	while (true)
 	{
 		Mat imgOriginal;
-		t = (double)getTickCount();
-		system("CLS");
 		
+		system("CLS");
+		t = (double)getTickCount();
 		bool bSuccess = cap.read(imgOriginal); // read a new frame from video
 
 		if (!bSuccess) //if not success, break loop
@@ -220,12 +221,8 @@ int main() {
 				centerY += v.y;
 			}
 			counter++;
-			/*cout << "new blob" << endl;
-			cout << size << endl;
-			cout << centerX << endl;
-			cout << centerY << endl;*/
-		
-			cout << "radi dist " << radiusDist << endl;
+			float heightWidth = ((largestX - smallestX) / (largestY - smallestY));
+			//if (heightWidth > 1+discrimHW || heightWidth < 1 - discrimHW) { continue; }
 			centerX = centerX / (float)size;
 			centerY = centerY / (float)size;
 			radiusDist = ((float)((float)(largestX - centerX) + (centerX - smallestX) + (largestY - centerY)+(centerY - smallestY)))/4;
@@ -234,7 +231,7 @@ int main() {
 			/*cout << centerX << endl;
 			cout << centerY << endl;*/
 			circle(imgOriginal, Point(centerX-GRIDSIZE, centerY-GRIDSIZE), radiusDist, Scalar(0, 0, 255), 5);
-			radiusDist = (float)radiusDist * 0.3;
+			radiusDist = (float)radiusDist * 0.5;
 			radiusDist = radiusDist * radiusDist;
 			//find closest pixel
 			int dist = 10000;
@@ -255,11 +252,31 @@ int main() {
 				i.rotation.x = i.rotation.x / (float)points.size();
 				i.rotation.y = i.rotation.y / (float)points.size();
 
-				cout << "----ROTATION------" << endl;
-				cout << i.rotation.x << ":" << i.rotation.y << endl;
-
-				cout << "close points:" << points.size() << "withing" << radiusDist << endl;
 				line(imgOriginal, Point(i.center.x - GRIDSIZE, i.center.y - GRIDSIZE), Point(i.center.x + i.rotation.x - GRIDSIZE, i.center.y + i.rotation.y - GRIDSIZE), Scalar(0, 255, 0), 3);
+			
+				//vectorStuff
+				cVector rotCclock;
+				rotCclock.x = -i.rotation.y*0.4;
+				rotCclock.y = i.rotation.x*0.4;
+				cVector rotClock;
+				rotClock.x = i.rotation.y*0.4;
+				rotClock.y = -i.rotation.x*0.4;
+				cVector reverse;
+				reverse.x = -i.rotation.x*0.8;
+				reverse.y = -i.rotation.y*0.8;
+
+				const Scalar cirCol(0, 255, 0);
+				const int cirSize = 2;
+				circle(imgOriginal, Point(centerX - GRIDSIZE, centerY - GRIDSIZE), sqrt(radiusDist), Scalar(0, 0, 255), 5);
+
+				circle(imgOriginal, Point(i.center.x + rotCclock.x - GRIDSIZE, i.center.y + rotCclock.y- GRIDSIZE),cirSize, cirCol, 2);
+				circle(imgOriginal, Point(i.center.x + rotClock.x - GRIDSIZE, i.center.y + rotClock.y +- GRIDSIZE),cirSize, cirCol, 2);
+				circle(imgOriginal, Point(i.center.x + rotCclock.x+ reverse.x - GRIDSIZE, i.center.y + rotCclock.y + reverse.y - GRIDSIZE),cirSize, cirCol, 2);
+				circle(imgOriginal, Point(i.center.x + rotClock.x + reverse.x - GRIDSIZE, i.center.y + rotClock.y +reverse.y - GRIDSIZE),cirSize, cirCol, 2);
+				circle(imgOriginal, Point(i.center.x + rotCclock.x*3  - GRIDSIZE, i.center.y + rotCclock.y*3 - GRIDSIZE),cirSize, cirCol, 2);
+				circle(imgOriginal, Point(i.center.x + rotClock.x*3 - GRIDSIZE, i.center.y + rotClock.y*3 - GRIDSIZE),cirSize, cirCol, 2);
+				circle(imgOriginal, Point(i.center.x + rotCclock.x*3 + reverse.x  - GRIDSIZE, i.center.y + rotCclock.y*3 + reverse.y - GRIDSIZE),cirSize, cirCol, 2);
+				circle(imgOriginal, Point(i.center.x + rotClock.x *3+ reverse.x  - GRIDSIZE, i.center.y + rotClock.y*3 + reverse.y - GRIDSIZE),cirSize, cirCol, 2);
 			}
 		}
 
