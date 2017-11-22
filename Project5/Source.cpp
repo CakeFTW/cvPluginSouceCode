@@ -5,11 +5,12 @@
 using namespace std;
 using namespace cv;
 
-const int GRIDSIZE = 1;
+const int GRIDSIZE = 3;
 
 int blue = 0;
 int green = 0;
 int red = 227;
+bool timeKeeping = true;
 
 void createTrackBars();
 
@@ -60,6 +61,7 @@ void dropFire(uchar * pixel, glyphObj &store, int width, int y, int x ) {
 
 int main() {
 
+	double t = (double)getTickCount();
 
 	Mat cameraFrame;
 
@@ -78,6 +80,8 @@ int main() {
 	while (true)
 	{
 		Mat imgOriginal;
+		t = (double)getTickCount();
+		system("CLS");
 		
 		bool bSuccess = cap.read(imgOriginal); // read a new frame from video
 
@@ -86,7 +90,11 @@ int main() {
 			cout << "Cannot read a frame from video stream" << endl;
 			break;
 		}
-
+		if (timeKeeping) {
+			t = ((double)getTickCount() - t) / getTickFrequency();
+			cout << "TIMEKEEPING:readCam	: " << t << endl;
+			t = (double)getTickCount();
+		}
 	//	imgOriginal = imread("white.png", CV_LOAD_IMAGE_COLOR);		
 		
 		Mat rgbNorm(imgOriginal.rows, imgOriginal.cols, CV_8UC3);
@@ -113,7 +121,11 @@ int main() {
 				cp[j + 2] = (uchar)(p[j + 2] * 255 / sum);
 			}
 		}
-
+		if (timeKeeping) {
+			t = ((double)getTickCount() - t) / getTickFrequency();
+			cout << "TIMEKEEPING:RGBnorm	: " << t << endl;
+			t = (double)getTickCount();
+		}
 		//threshold the image
 		Mat thresImg(imgOriginal.rows, imgOriginal.cols, CV_8UC1);
 		
@@ -135,7 +147,11 @@ int main() {
 				cp[j] = 0;
 			}
 		}
-
+		if (timeKeeping) {
+			t = ((double)getTickCount() - t) / getTickFrequency();
+			cout << "TIMEKEEPING:Threshold	: " << t << endl;
+			t = (double)getTickCount();
+		}
 		copyMakeBorder(thresImg, thresImg, GRIDSIZE +1, GRIDSIZE +1 , GRIDSIZE +1 , GRIDSIZE +1 , BORDER_CONSTANT, 0);
 		
 		Mat element = getStructuringElement(MORPH_ELLIPSE, Size(3, 3), Point(2, 2));
@@ -158,19 +174,22 @@ int main() {
 			for (int j = GRIDSIZE; j < nCols-GRIDSIZE; j += GRIDSIZE) {
 				if (p[j] == 255) {
 					glyphObj currentBlob;
-					currentBlob.nr = col;
-					dropFire(p + j, currentBlob, nCols, i , j);
+					blobs.push_back(currentBlob);
+					blobs.back().nr = col;
+					dropFire(p + j, blobs.back(), nCols, i , j);
 					col -= 10;
 					if (col < 20) {
 						col = 245;
 					}
-					blobs.push_back(currentBlob);
 				}
 			}
 		}
 		
-		Mat thresImgHolder(nRows, nCols, CV_8UC1);
-		
+		if (timeKeeping) {
+			t = ((double)getTickCount() - t) / getTickFrequency();
+			cout << "TIMEKEEPING:BlobDetect	: " << t << endl;
+			t = (double)getTickCount();
+		}
 
 		
 
@@ -186,10 +205,14 @@ int main() {
 			if (size < minSize || size > maxSize) { continue; }
 			long centerX = 0;
 			long centerY = 0;
+			int largestX = 0;
+			int smallestX = 10000;
+			int largestY = 0;
+			int smallestY = 10000;
+
 			for (auto &v : i.list) {
 				centerX += v.x;
 				centerY += v.y;
-				thresImgHolder.at<uchar>(v.y, v.x) = i.nr;
 			}
 			counter++;
 			/*cout << "new blob" << endl;
@@ -219,11 +242,18 @@ int main() {
 			line(imgOriginal, Point(i.center.x-GRIDSIZE, i.center.y-GRIDSIZE), Point(i.center.x + 4*i.rotation.x-GRIDSIZE, i.center.y + 4*i.rotation.y-GRIDSIZE), Scalar(0, 255, 0), 3);
 			
 		}
+
+		if (timeKeeping) {
+			t = ((double)getTickCount() - t) / getTickFrequency();
+			cout << "TIMEKEEPING:BlobAnalysis: " << t << endl;
+			t = (double)getTickCount();
+		}
+
 		if (counter != 0) {
 			cout << "nr of objects : " << counter << "off :" << blobs.size() << endl;
 		}
 		cv::imshow("original", imgOriginal);
-		cv::imshow("normalized", thresImgHolder);
+		cv::imshow("normalized", rgbNorm);
 		cv::imshow("thresholded", thresImg);
 
 		if (waitKey(30) == 27) //wait for 'esc' key press for 30ms. If 'esc' key is pressed, break loop
