@@ -1,6 +1,2 @@
-﻿  Source.cpp
-c:\users\gaard\documents\aau\cvpluginsoucecode\project5\source.cpp(104): warning C4244: '=': conversion from 'int' to 'float', possible loss of data
-c:\users\gaard\documents\aau\cvpluginsoucecode\project5\source.cpp(185): warning C4267: '=': conversion from 'size_t' to 'int', possible loss of data
-c:\users\gaard\documents\aau\cvpluginsoucecode\project5\source.cpp(199): warning C4244: '=': conversion from 'float' to 'long', possible loss of data
-c:\users\gaard\documents\aau\cvpluginsoucecode\project5\source.cpp(200): warning C4244: '=': conversion from 'float' to 'long', possible loss of data
-  Project5.vcxproj -> C:\Users\gaard\Documents\AAU\cvPluginSouceCode\x64\Debug\Project5.exe
+﻿  Project5.vcxproj -> C:\Users\dgkar\Documents\cvPluginSouceCode\x64\Debug\Project5.exe
+  Project5.vcxproj -> C:\Users\dgkar\Documents\cvPluginSouceCode\x64\Debug\Project5.pdb (Partial PDB)
