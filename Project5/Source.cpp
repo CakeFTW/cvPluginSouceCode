@@ -5,13 +5,13 @@
 using namespace std;
 using namespace cv;
 
-const int GRIDSIZE = 2;
+const int GRIDSIZE = 1;
 
 int blue = 0;
 int green = 40;
 int red = 180;
 bool timeKeeping = true;
-const float discrimHW = 0.25;
+const float discrimHW = 0.2;
 
 void createTrackBars();
 
@@ -68,7 +68,170 @@ void dropFire(uchar * pixel, glyphObj &store, int width, int y, int x ) {
 	}
 }
 
+void grassFireBlobDetection(Mat &biImg, vector<glyphObj> &blobs) {
+	int nRows = biImg.rows;
+	int nCols = biImg.cols;
+	uchar * p;
 
+	int col = 245;
+	for (int i = GRIDSIZE + 1; i < nRows - GRIDSIZE - 1; i += GRIDSIZE) {
+		p = biImg.ptr<uchar>(i);
+		for (int j = GRIDSIZE; j < nCols - GRIDSIZE; j += GRIDSIZE) {
+			if (p[j] == 255) {
+				glyphObj currentBlob;
+				blobs.push_back(currentBlob);
+				blobs.back().nr = col;
+				dropFire(p + j, blobs.back(), nCols, i, j);
+				col -= 10;
+				if (col < 20) {
+					col = 245;
+				}
+			}
+		}
+	}
+}
+
+
+void blobAnalysis(vector<glyphObj> &blobs, Mat &drawImg) {
+
+
+	//printing out objects
+	int minSize = 30 / GRIDSIZE;
+	int maxSize = 4000 / GRIDSIZE;
+	for (auto &i : blobs) {
+		//find center
+		int size;
+		size = i.list.size();
+		if (size < minSize || size > maxSize) { continue; }
+		long centerX = 0;
+		long centerY = 0;
+		int largestX = 0;
+		int smallestX = 10000;
+		int largestY = 0;
+		int smallestY = 10000;
+		int radiusDist = 0;
+
+		for (auto &v : i.list) {
+			if (v.x < smallestX) { smallestX = v.x; }
+			if (v.x > largestX) { largestX = v.x; }
+			if (v.y < smallestY) { smallestY = v.y; }
+			if (v.y > largestY) { largestY = v.y; }
+			centerX += v.x;
+			centerY += v.y;
+		}
+		float heightWidth = ((largestX - smallestX) / (float)(largestY - smallestY));
+
+		//check discriminate basedd on height width relation
+		if (heightWidth > (1 + discrimHW) || heightWidth <(1 - discrimHW)) { continue; }
+		centerX = centerX / (float)size;
+		centerY = centerY / (float)size;
+		radiusDist = ((float)((float)(largestX - centerX) + (centerX - smallestX) + (largestY - centerY) + (centerY - smallestY))) / 4;
+		i.center.x = centerX;
+		i.center.y = centerY;
+		circle(drawImg, Point(centerX - GRIDSIZE, centerY - GRIDSIZE), radiusDist, Scalar(0, 0, 255), 5);
+		radiusDist = (float)radiusDist * 0.5;
+		radiusDist = radiusDist * radiusDist;
+		//find closest pixel
+		int dist = 10000;
+		vector<cVector> points;
+		for (auto &v : i.list) {
+			dist = (v.x - i.center.x) * (v.x - i.center.x) + (v.y - i.center.y) * (v.y - i.center.y);
+			if (dist < radiusDist) {
+				points.push_back(v);
+			}
+		}
+		i.rotation.x = 0;
+		i.rotation.y = 0;
+		for (auto &p : points) {
+			i.rotation.x += p.x - centerX;
+			i.rotation.y += p.y - centerY;
+		}
+		if (points.size() != 0) {
+			i.rotation.x = i.rotation.x / (float)points.size();
+			i.rotation.y = i.rotation.y / (float)points.size();
+
+			line(drawImg, Point(i.center.x - GRIDSIZE, i.center.y - GRIDSIZE), Point(i.center.x + i.rotation.x - GRIDSIZE, i.center.y + i.rotation.y - GRIDSIZE), Scalar(0, 255, 0), 2);
+
+			//use vectors to find bit pixels.
+			cVector rotCclock;
+			rotCclock.x = -i.rotation.y*0.4;
+			rotCclock.y = i.rotation.x*0.4;
+			cVector rotClock;
+			rotClock.x = i.rotation.y*0.4;
+			rotClock.y = -i.rotation.x*0.4;
+			cVector reverse;
+			reverse.x = -i.rotation.x*0.8;
+			reverse.y = -i.rotation.y*0.8;
+
+			const Scalar cirCol(0, 255, 0);
+			const int cirSize = 1;
+			circle(drawImg, Point(centerX - GRIDSIZE, centerY - GRIDSIZE), sqrt(radiusDist), Scalar(255, 0, 255), 2);
+
+
+			vector<cVector> searchPoints;
+			cVector point(i.center.x + rotCclock.x - GRIDSIZE, i.center.y + rotCclock.y - GRIDSIZE);
+			circle(drawImg, Point(point.x, point.y), cirSize, cirCol, 1);
+			searchPoints.push_back(point);
+
+			point = cVector(i.center.x + rotClock.x - GRIDSIZE, i.center.y + rotClock.y + -GRIDSIZE);
+			circle(drawImg, Point(point.x, point.y), cirSize, cirCol, 1);
+			searchPoints.push_back(point);
+
+			point = cVector(i.center.x + rotCclock.x + reverse.x - GRIDSIZE, i.center.y + rotCclock.y + reverse.y - GRIDSIZE);
+			circle(drawImg, Point(point.x, point.y), cirSize, cirCol, 1);
+			searchPoints.push_back(point);
+
+			point = cVector(i.center.x + rotClock.x + reverse.x - GRIDSIZE, i.center.y + rotClock.y + reverse.y - GRIDSIZE);
+			circle(drawImg, Point(point.x, point.y), cirSize, cirCol, 1);
+			searchPoints.push_back(point);
+
+			point = cVector(i.center.x + rotCclock.x * 3 - GRIDSIZE, i.center.y + rotCclock.y * 3 - GRIDSIZE);
+			circle(drawImg, Point(point.x, point.y), cirSize, cirCol, 1);
+			searchPoints.push_back(point);
+
+			point = cVector(i.center.x + rotClock.x * 3 - GRIDSIZE, i.center.y + rotClock.y * 3 - GRIDSIZE);
+			circle(drawImg, Point(point.x, point.y), cirSize, cirCol, 1);
+			searchPoints.push_back(point);
+
+			point = cVector(i.center.x + rotCclock.x * 3 + reverse.x - GRIDSIZE, i.center.y + rotCclock.y * 3 + reverse.y - GRIDSIZE);
+			circle(drawImg, Point(point.x, point.y), cirSize, cirCol, 1);
+			searchPoints.push_back(point);
+
+			point = cVector(i.center.x + rotClock.x * 3 + reverse.x - GRIDSIZE, i.center.y + rotClock.y * 3 + reverse.y - GRIDSIZE);
+			circle(drawImg, Point(point.x, point.y), cirSize, cirCol, 1);
+			searchPoints.push_back(point);
+
+			int bitCounter = 0;
+			uchar * colPtr;
+			int colCounter = 0;
+			int iterations = 0;
+			for (auto &sp : searchPoints) {
+				colCounter = 0;
+				colPtr = drawImg.ptr(sp.y);
+				colCounter += *(colPtr + sp.x);
+				colCounter += *(colPtr + sp.x + 1);
+				colCounter += *(colPtr + sp.x + 2);
+				if (colCounter < 100) {
+					bitCounter = pow(2, iterations);
+				}
+				else {
+				}
+				iterations++;
+			}
+			i.nr = bitCounter;
+
+		}
+	}
+
+}
+
+void normRGBthres(Mat &input, Mat &output , int threshold) {
+
+	//create lookup table
+	int
+
+
+}
 
 int main() {
 
@@ -106,7 +269,6 @@ int main() {
 			cout << "TIMEKEEPING:readCam	: " << t << endl;
 			t = (double)getTickCount();
 		}
-	//	imgOriginal = imread("white.png", CV_LOAD_IMAGE_COLOR);		
 		
 		Mat rgbNorm(imgOriginal.rows, imgOriginal.cols, CV_8UC3);
 		
@@ -145,7 +307,6 @@ int main() {
 		nCols = rgbNorm.cols;
 
 
-
 		for (int i = 0; i < nRows; i++) {
 			p = rgbNorm.ptr<uchar>(i);
 			cp = thresImg.ptr<uchar>(i);
@@ -169,191 +330,49 @@ int main() {
 		//Test border shit here
 		findBorder(0, 0, thresImg);
 
+		if (timeKeeping) {
+			t = ((double)getTickCount() - t) / getTickFrequency();
+			cout << "TIMEKEEPING:DanielsStuf	: " << t << endl;
+			t = (double)getTickCount();
+		}
+
+
 		Mat element = getStructuringElement(MORPH_ELLIPSE, Size(3, 3), Point(2, 2));
-		//morphologyEx(thresImg, thresImg, MORPH_DILATE, element );
+		morphologyEx(thresImg, thresImg, MORPH_DILATE, element );
+
+
+		if (timeKeeping) {
+			t = ((double)getTickCount() - t) / getTickFrequency();
+			cout << "TIMEKEEPING:MORPH	: " << t << endl;
+			t = (double)getTickCount();
+		}
+
+
+
 
 		//blob detection
-		nRows = thresImg.rows;
-		nCols = thresImg.cols;
-
 		vector<glyphObj> blobs;
-		int col = 245;
-		for (int i = GRIDSIZE + 1; i < nRows-GRIDSIZE - 1; i += GRIDSIZE) {
-			p = thresImg.ptr<uchar>(i);
-			for (int j = GRIDSIZE; j < nCols-GRIDSIZE; j += GRIDSIZE) {
-				if (p[j] == 255) {
-					glyphObj currentBlob;
-					blobs.push_back(currentBlob);
-					blobs.back().nr = col;
-					dropFire(p + j, blobs.back(), nCols, i , j);
-					col -= 10;
-					if (col < 20) {
-						col = 245;
-					}
-				}
-			}
-		}
-		
+		grassFireBlobDetection(thresImg, blobs);
+
 		if (timeKeeping) {
 			t = ((double)getTickCount() - t) / getTickFrequency();
 			cout << "TIMEKEEPING:BlobDetect	: " << t << endl;
 			t = (double)getTickCount();
 		}
 
-		
-
-		//printing out objects
-		int counter = 0;
-		int minSize = 30/GRIDSIZE;
-		int maxSize = 4000/GRIDSIZE;
-		for ( auto &i : blobs) {
-
-			//find center
-			int size;
-			size = i.list.size();
-			if (size < minSize || size > maxSize) { continue; }
-			long centerX = 0;
-			long centerY = 0;
-			int largestX = 0;
-			int smallestX = 10000;
-			int largestY = 0;
-			int smallestY = 10000;
-			int radiusDist = 0;
-
-			for (auto &v : i.list) {
-				if (v.x < smallestX) { smallestX = v.x; }
-				if (v.x > largestX) { largestX = v.x; }
-				if (v.y < smallestY) { smallestY = v.y; }
-				if (v.y > largestY) { largestY = v.y; }
-				centerX += v.x;
-				centerY += v.y;
-			}
-			counter++;
-			float heightWidth = ((largestX - smallestX) / (float)(largestY - smallestY));
-			cout << "height width" << heightWidth << "giving us the checks " << heightWidth<<  endl;
-			cout<< (heightWidth > (1 + discrimHW)) << "and " << (heightWidth > (1 - discrimHW)) << endl;
-			//check discriminate basedd on height width relation
-			if (heightWidth > (1+discrimHW) || heightWidth <( 1 - discrimHW)) { continue; }
-			centerX = centerX / (float)size;
-			centerY = centerY / (float)size;
-			radiusDist = ((float)((float)(largestX - centerX) + (centerX - smallestX) + (largestY - centerY)+(centerY - smallestY)))/4;
-			i.center.x = centerX;
-			i.center.y = centerY;
-			circle(imgOriginal, Point(centerX-GRIDSIZE, centerY-GRIDSIZE), radiusDist, Scalar(0, 0, 255), 5);
-			radiusDist = (float)radiusDist * 0.5;
-			radiusDist = radiusDist * radiusDist;
-			//find closest pixel
-			int dist = 10000;
-			vector<cVector> points;
-			for (auto &v : i.list) {
-				dist = (v.x - i.center.x) * (v.x - i.center.x) + (v.y - i.center.y) * (v.y - i.center.y);
-				if (dist < radiusDist) {
-					points.push_back(v);
-				}
-			}
-			i.rotation.x = 0;
-			i.rotation.y = 0;
-			for (auto &p : points) {
-				i.rotation.x += p.x-centerX;
-				i.rotation.y += p.y - centerY;
-			}
-			if (points.size() != 0) {
-				i.rotation.x = i.rotation.x / (float)points.size();
-				i.rotation.y = i.rotation.y / (float)points.size();
-
-				line(imgOriginal, Point(i.center.x - GRIDSIZE, i.center.y - GRIDSIZE), Point(i.center.x + i.rotation.x - GRIDSIZE, i.center.y + i.rotation.y - GRIDSIZE), Scalar(0, 255, 0), 2);
-
-				//vectorStuff
-				cVector rotCclock;
-				rotCclock.x = -i.rotation.y*0.4;
-				rotCclock.y = i.rotation.x*0.4;
-				cVector rotClock;
-				rotClock.x = i.rotation.y*0.4;
-				rotClock.y = -i.rotation.x*0.4;
-				cVector reverse;
-				reverse.x = -i.rotation.x*0.8;
-				reverse.y = -i.rotation.y*0.8;
-
-				const Scalar cirCol(0, 255, 0);
-				const int cirSize = 1;
-				circle(imgOriginal, Point(centerX - GRIDSIZE, centerY - GRIDSIZE), sqrt(radiusDist), Scalar(255, 0, 255), 2);
-
-
-				vector<cVector> searchPoints;
-				cVector point(i.center.x + rotCclock.x - GRIDSIZE, i.center.y + rotCclock.y - GRIDSIZE);
-				circle(imgOriginal, Point(point.x, point.y), cirSize, cirCol, 1);
-				searchPoints.push_back(point);
-
-				point = cVector(i.center.x + rotClock.x - GRIDSIZE, i.center.y + rotClock.y + -GRIDSIZE);
-				circle(imgOriginal, Point(point.x, point.y), cirSize, cirCol, 1);
-				searchPoints.push_back(point);
-
-				point = cVector(i.center.x + rotCclock.x + reverse.x - GRIDSIZE, i.center.y + rotCclock.y + reverse.y - GRIDSIZE);
-				circle(imgOriginal, Point(point.x, point.y), cirSize, cirCol, 1);
-				searchPoints.push_back(point);
-
-				point = cVector(i.center.x + rotClock.x + reverse.x - GRIDSIZE, i.center.y + rotClock.y + reverse.y - GRIDSIZE);
-				circle(imgOriginal, Point(point.x, point.y), cirSize, cirCol, 1);
-				searchPoints.push_back(point);
-
-				point = cVector(i.center.x + rotCclock.x * 3 - GRIDSIZE, i.center.y + rotCclock.y * 3 - GRIDSIZE);
-				circle(imgOriginal, Point(point.x, point.y), cirSize, cirCol, 1);
-				searchPoints.push_back(point);
-
-				point = cVector(i.center.x + rotClock.x * 3 - GRIDSIZE, i.center.y + rotClock.y * 3 - GRIDSIZE);
-				circle(imgOriginal, Point(point.x, point.y), cirSize, cirCol, 1);
-				searchPoints.push_back(point);
-
-				point = cVector(i.center.x + rotCclock.x * 3 + reverse.x - GRIDSIZE, i.center.y + rotCclock.y * 3 + reverse.y - GRIDSIZE);
-				circle(imgOriginal, Point(point.x, point.y), cirSize, cirCol, 1);
-				searchPoints.push_back(point);
-
-				point = cVector(i.center.x + rotClock.x * 3 + reverse.x - GRIDSIZE, i.center.y + rotClock.y * 3 + reverse.y - GRIDSIZE);
-				circle(imgOriginal, Point(point.x, point.y), cirSize, cirCol, 1);
-				searchPoints.push_back(point);
-
-				int bitCounter = 0;
-				uchar * colPtr;
-				int colCounter = 0;
-				int iterations = 0;
-				for (auto &sp : searchPoints) {
-					colCounter = 0;
-					colPtr = imgOriginal.ptr(sp.y);
-					colCounter += *(colPtr + sp.x);
-					colCounter += *(colPtr + sp.x + 1);
-					colCounter += *(colPtr + sp.x + 2);
-					if (colCounter < 100) {
-						bitCounter = pow(2, iterations);
-						//cout << "added value" << pow(2, iterations) << endl;
-					}
-					else {
-						//cout << "added no value at:" << pow(2, iterations) << endl;
-					}
-					iterations++;
-				}
-				i.nr = bitCounter;
-
-			}
-		}
-
+		//blob analysis
+		blobAnalysis(blobs, imgOriginal);
 		if (timeKeeping) {
 			t = ((double)getTickCount() - t) / getTickFrequency();
 			cout << "TIMEKEEPING:BlobAnalysis: " << t << endl;
 			t = (double)getTickCount();
 		}
 
-		if (counter != 0) {
-			cout << "nr of objects : " << counter << " off " << blobs.size() << endl;
-		}
 		cv::imshow("original", imgOriginal);
 		cv::imshow("normalized", rgbNorm);
 		cv::imshow("thresholded", thresImg);
 
-		if (waitKey(30) == 27) //wait for 'esc' key press for 30ms. If 'esc' key is pressed, break loop
-		{
-			cout << "esc key is pressed by user" << endl;
-			break;
-		}
+		waitKey(500);
 	}
 
 
