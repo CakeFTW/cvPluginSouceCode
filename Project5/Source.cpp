@@ -228,7 +228,7 @@ void blobAnalysis(vector<glyphObj> &blobs, Mat &drawImg) {
 void normRGBthres(Mat &input, Mat &output , int threshold) {
 
 	//create lookup table
-	int
+
 
 
 }
