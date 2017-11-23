@@ -5,13 +5,13 @@
 using namespace std;
 using namespace cv;
 
-const int GRIDSIZE = 3;
+const int GRIDSIZE = 2;
 
 int blue = 0;
-int green = 0;
-int red = 227;
+int green = 40;
+int red = 180;
 bool timeKeeping = true;
-const int discrimHW = 0.6;
+const float discrimHW = 0.2;
 
 void createTrackBars();
 
@@ -170,7 +170,7 @@ int main() {
 		findBorder(0, 0, thresImg);
 
 		Mat element = getStructuringElement(MORPH_ELLIPSE, Size(3, 3), Point(2, 2));
-		morphologyEx(thresImg, thresImg, MORPH_DILATE, element );
+		//morphologyEx(thresImg, thresImg, MORPH_DILATE, element );
 
 		//blob detection
 		nRows = thresImg.rows;
@@ -210,7 +210,7 @@ int main() {
 
 		//printing out objects
 		int counter = 0;
-		int minSize = 400/GRIDSIZE;
+		int minSize = 50/GRIDSIZE;
 		int maxSize = 4000/GRIDSIZE;
 		for ( auto &i : blobs) {
 
@@ -235,15 +235,16 @@ int main() {
 				centerY += v.y;
 			}
 			counter++;
-			float heightWidth = ((largestX - smallestX) / (largestY - smallestY));
-			//if (heightWidth > 1+discrimHW || heightWidth < 1 - discrimHW) { continue; }
+			float heightWidth = ((largestX - smallestX) / (float)(largestY - smallestY));
+			cout << "height width" << heightWidth << "giving us the checks " << heightWidth<<  endl;
+			cout<< (heightWidth > (1 + discrimHW)) << "and " << (heightWidth > (1 - discrimHW)) << endl;
+			//check discriminate basedd on height width relation
+			if (heightWidth > (1+discrimHW) || heightWidth <( 1 - discrimHW)) { continue; }
 			centerX = centerX / (float)size;
 			centerY = centerY / (float)size;
 			radiusDist = ((float)((float)(largestX - centerX) + (centerX - smallestX) + (largestY - centerY)+(centerY - smallestY)))/4;
 			i.center.x = centerX;
-			i.center.y = centerY; 
-			/*cout << centerX << endl;
-			cout << centerY << endl;*/
+			i.center.y = centerY;
 			circle(imgOriginal, Point(centerX-GRIDSIZE, centerY-GRIDSIZE), radiusDist, Scalar(0, 0, 255), 5);
 			radiusDist = (float)radiusDist * 0.5;
 			radiusDist = radiusDist * radiusDist;
