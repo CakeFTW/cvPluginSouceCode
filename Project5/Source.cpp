@@ -11,7 +11,7 @@ int blue = 0;
 int green = 40;
 int red = 180;
 bool timeKeeping = true;
-const float discrimHW = 0.2;
+const float discrimHW = 0.25;
 
 void createTrackBars();
 
@@ -176,12 +176,6 @@ int main() {
 		nRows = thresImg.rows;
 		nCols = thresImg.cols;
 
-		//create lookuptable to get acces to each row;
-		uchar ** lut = new uchar*[nRows];
-		for (int i = 0; i < nRows; i++) {
-			*(lut + i) = thresImg.ptr<uchar>(i);
-		}
-
 		vector<glyphObj> blobs;
 		int col = 245;
 		for (int i = GRIDSIZE + 1; i < nRows-GRIDSIZE - 1; i += GRIDSIZE) {
@@ -210,7 +204,7 @@ int main() {
 
 		//printing out objects
 		int counter = 0;
-		int minSize = 50/GRIDSIZE;
+		int minSize = 30/GRIDSIZE;
 		int maxSize = 4000/GRIDSIZE;
 		for ( auto &i : blobs) {
 
@@ -267,8 +261,8 @@ int main() {
 				i.rotation.x = i.rotation.x / (float)points.size();
 				i.rotation.y = i.rotation.y / (float)points.size();
 
-				line(imgOriginal, Point(i.center.x - GRIDSIZE, i.center.y - GRIDSIZE), Point(i.center.x + i.rotation.x - GRIDSIZE, i.center.y + i.rotation.y - GRIDSIZE), Scalar(0, 255, 0), 3);
-			
+				line(imgOriginal, Point(i.center.x - GRIDSIZE, i.center.y - GRIDSIZE), Point(i.center.x + i.rotation.x - GRIDSIZE, i.center.y + i.rotation.y - GRIDSIZE), Scalar(0, 255, 0), 2);
+
 				//vectorStuff
 				cVector rotCclock;
 				rotCclock.x = -i.rotation.y*0.4;
@@ -281,17 +275,64 @@ int main() {
 				reverse.y = -i.rotation.y*0.8;
 
 				const Scalar cirCol(0, 255, 0);
-				const int cirSize = 2;
-				circle(imgOriginal, Point(centerX - GRIDSIZE, centerY - GRIDSIZE), sqrt(radiusDist), Scalar(0, 0, 255), 5);
+				const int cirSize = 1;
+				circle(imgOriginal, Point(centerX - GRIDSIZE, centerY - GRIDSIZE), sqrt(radiusDist), Scalar(255, 0, 255), 2);
 
-				circle(imgOriginal, Point(i.center.x + rotCclock.x - GRIDSIZE, i.center.y + rotCclock.y- GRIDSIZE),cirSize, cirCol, 2);
-				circle(imgOriginal, Point(i.center.x + rotClock.x - GRIDSIZE, i.center.y + rotClock.y +- GRIDSIZE),cirSize, cirCol, 2);
-				circle(imgOriginal, Point(i.center.x + rotCclock.x+ reverse.x - GRIDSIZE, i.center.y + rotCclock.y + reverse.y - GRIDSIZE),cirSize, cirCol, 2);
-				circle(imgOriginal, Point(i.center.x + rotClock.x + reverse.x - GRIDSIZE, i.center.y + rotClock.y +reverse.y - GRIDSIZE),cirSize, cirCol, 2);
-				circle(imgOriginal, Point(i.center.x + rotCclock.x*3  - GRIDSIZE, i.center.y + rotCclock.y*3 - GRIDSIZE),cirSize, cirCol, 2);
-				circle(imgOriginal, Point(i.center.x + rotClock.x*3 - GRIDSIZE, i.center.y + rotClock.y*3 - GRIDSIZE),cirSize, cirCol, 2);
-				circle(imgOriginal, Point(i.center.x + rotCclock.x*3 + reverse.x  - GRIDSIZE, i.center.y + rotCclock.y*3 + reverse.y - GRIDSIZE),cirSize, cirCol, 2);
-				circle(imgOriginal, Point(i.center.x + rotClock.x *3+ reverse.x  - GRIDSIZE, i.center.y + rotClock.y*3 + reverse.y - GRIDSIZE),cirSize, cirCol, 2);
+
+				vector<cVector> searchPoints;
+				cVector point(i.center.x + rotCclock.x - GRIDSIZE, i.center.y + rotCclock.y - GRIDSIZE);
+				circle(imgOriginal, Point(point.x, point.y), cirSize, cirCol, 1);
+				searchPoints.push_back(point);
+
+				point = cVector(i.center.x + rotClock.x - GRIDSIZE, i.center.y + rotClock.y + -GRIDSIZE);
+				circle(imgOriginal, Point(point.x, point.y), cirSize, cirCol, 1);
+				searchPoints.push_back(point);
+
+				point = cVector(i.center.x + rotCclock.x + reverse.x - GRIDSIZE, i.center.y + rotCclock.y + reverse.y - GRIDSIZE);
+				circle(imgOriginal, Point(point.x, point.y), cirSize, cirCol, 1);
+				searchPoints.push_back(point);
+
+				point = cVector(i.center.x + rotClock.x + reverse.x - GRIDSIZE, i.center.y + rotClock.y + reverse.y - GRIDSIZE);
+				circle(imgOriginal, Point(point.x, point.y), cirSize, cirCol, 1);
+				searchPoints.push_back(point);
+
+				point = cVector(i.center.x + rotCclock.x * 3 - GRIDSIZE, i.center.y + rotCclock.y * 3 - GRIDSIZE);
+				circle(imgOriginal, Point(point.x, point.y), cirSize, cirCol, 1);
+				searchPoints.push_back(point);
+
+				point = cVector(i.center.x + rotClock.x * 3 - GRIDSIZE, i.center.y + rotClock.y * 3 - GRIDSIZE);
+				circle(imgOriginal, Point(point.x, point.y), cirSize, cirCol, 1);
+				searchPoints.push_back(point);
+
+				point = cVector(i.center.x + rotCclock.x * 3 + reverse.x - GRIDSIZE, i.center.y + rotCclock.y * 3 + reverse.y - GRIDSIZE);
+				circle(imgOriginal, Point(point.x, point.y), cirSize, cirCol, 1);
+				searchPoints.push_back(point);
+
+				point = cVector(i.center.x + rotClock.x * 3 + reverse.x - GRIDSIZE, i.center.y + rotClock.y * 3 + reverse.y - GRIDSIZE);
+				circle(imgOriginal, Point(point.x, point.y), cirSize, cirCol, 1);
+				searchPoints.push_back(point);
+
+				int bitCounter = 0;
+				uchar * colPtr;
+				int colCounter = 0;
+				int iterations = 0;
+				for (auto &sp : searchPoints) {
+					colCounter = 0;
+					colPtr = imgOriginal.ptr(sp.y);
+					colCounter += *(colPtr + sp.x);
+					colCounter += *(colPtr + sp.x + 1);
+					colCounter += *(colPtr + sp.x + 2);
+					if (colCounter < 100) {
+						bitCounter = pow(2, iterations);
+						//cout << "added value" << pow(2, iterations) << endl;
+					}
+					else {
+						//cout << "added no value at:" << pow(2, iterations) << endl;
+					}
+					iterations++;
+				}
+				i.nr = bitCounter;
+
 			}
 		}
 
@@ -314,10 +355,6 @@ int main() {
 			break;
 		}
 	}
-
-
-
-
 
 
 	return 0;
