@@ -336,3 +336,7 @@ __pycache__/
 
 # OpenCover UI analysis results
 OpenCover/
+
+
+Project5/opencv_world330d.dll
+Project5/opencv_world331d.dll
