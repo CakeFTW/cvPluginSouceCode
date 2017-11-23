@@ -343,7 +343,7 @@ void findBorder(int, void*, Mat src) {
 	Mat drawing = Mat::zeros(canny_output.size(), CV_8UC3);
 
 	for (int i = 0; i < contours.size(); i++) {
-		Scalar color = Scalar(rng.uniform(0, 255), rng.uniform(0, 255), rng.uniform(0, 255));
+		Scalar color = Scalar(0, 0, 255);
 		drawContours(drawing, contours, i, color, 2, 8, hiearchy, 0, Point());
 	}
 
