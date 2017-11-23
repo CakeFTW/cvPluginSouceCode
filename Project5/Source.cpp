@@ -15,6 +15,15 @@ const int discrimHW = 0.6;
 
 void createTrackBars();
 
+
+//Finding border edge
+int thresh = 100;
+int max_thresh = 255;
+RNG rng(12345);
+
+
+void findBorder(int, void*, Mat src);
+
 struct cVector {
 	int x;
 	int y;
@@ -60,6 +69,7 @@ void dropFire(uchar * pixel, glyphObj &store, int width, int y, int x ) {
 }
 
 
+
 int main() {
 
 	double t = (double)getTickCount();
@@ -85,7 +95,7 @@ int main() {
 		system("CLS");
 		t = (double)getTickCount();
 		bool bSuccess = cap.read(imgOriginal); // read a new frame from video
-
+		
 		if (!bSuccess) //if not success, break loop
 		{
 			cout << "Cannot read a frame from video stream" << endl;
@@ -99,7 +109,7 @@ int main() {
 	//	imgOriginal = imread("white.png", CV_LOAD_IMAGE_COLOR);		
 		
 		Mat rgbNorm(imgOriginal.rows, imgOriginal.cols, CV_8UC3);
-
+		
 		//convert to normalized rgb space
 		int nRows = rgbNorm.rows;
 		int nCols = rgbNorm.cols*3;
@@ -122,6 +132,7 @@ int main() {
 				cp[j + 2] = (uchar)(p[j + 2] * 255 / sum);
 			}
 		}
+		
 		if (timeKeeping) {
 			t = ((double)getTickCount() - t) / getTickFrequency();
 			cout << "TIMEKEEPING:RGBnorm	: " << t << endl;
@@ -141,7 +152,7 @@ int main() {
 		
 			for (int j = 0 ; j < nCols; j += 1) {
 				int color = j * 3;
-				if ((p[color+1] - green)*(p[color + 1] - green) + (p[color + 2] - red)*(p[color + 2] - red) < 1600) {
+				if ((p[color + 1] - green)*(p[color + 1] - green) + (p[color + 2] - red)*(p[color + 2] - red) < 1600) {
 					cp[j] = 255;
 					continue;
 				}
@@ -155,6 +166,9 @@ int main() {
 		}
 		copyMakeBorder(thresImg, thresImg, GRIDSIZE +1, GRIDSIZE +1 , GRIDSIZE +1 , GRIDSIZE +1 , BORDER_CONSTANT, 0);
 		
+		//Test border shit here
+		findBorder(0, 0, thresImg);
+
 		Mat element = getStructuringElement(MORPH_ELLIPSE, Size(3, 3), Point(2, 2));
 		morphologyEx(thresImg, thresImg, MORPH_DILATE, element );
 
@@ -287,7 +301,7 @@ int main() {
 		}
 
 		if (counter != 0) {
-			cout << "nr of objects : " << counter << "off :" << blobs.size() << endl;
+			cout << "nr of objects : " << counter << " off " << blobs.size() << endl;
 		}
 		cv::imshow("original", imgOriginal);
 		cv::imshow("normalized", rgbNorm);
@@ -313,4 +327,26 @@ void createTrackBars() {
 	cvCreateTrackbar("R", "Control", &red, 255);
 	cvCreateTrackbar("G", "Control", &green, 255);
 	cvCreateTrackbar("B", "Control", &blue, 255);
+}
+
+void findBorder(int, void*, Mat src) {
+	Mat canny_output;
+
+	vector<vector<Point>> contours;
+
+	vector<Vec4i> hiearchy;
+
+	Canny(src, canny_output, thresh, thresh*2, 3);
+
+	findContours(canny_output, contours, hiearchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE, Point(0, 0));
+
+	Mat drawing = Mat::zeros(canny_output.size(), CV_8UC3);
+
+	for (int i = 0; i < contours.size(); i++) {
+		Scalar color = Scalar(rng.uniform(0, 255), rng.uniform(0, 255), rng.uniform(0, 255));
+		drawContours(drawing, contours, i, color, 2, 8, hiearchy, 0, Point());
+	}
+
+	namedWindow("Contours", CV_WINDOW_AUTOSIZE);
+	imshow("Contours", drawing);
 }
