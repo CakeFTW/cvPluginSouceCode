@@ -411,7 +411,7 @@ void findBorder(Mat src) {
 	medianBlur(canny_output, canny_output, 7);
 	
 	//Find the contours, and save them in contours vector vector
-	findContours(canny_output, contours, hiearchy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
+	findContours(canny_output, contours, hiearchy, CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE);
 	
 	//Empty material to store the drawing of the contour
 	Mat drawing = Mat::zeros(canny_output.size(), CV_8UC3);
@@ -444,5 +444,4 @@ void findBorder(Mat src) {
 	//Show the resulting biggest contour "object"
 	namedWindow("Contours", CV_WINDOW_AUTOSIZE);
 	imshow("Contours", drawing);
-
 }
