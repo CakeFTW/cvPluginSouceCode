@@ -10,7 +10,7 @@ const int GRIDSIZE = 1;
 int blue = 0;
 int green = 40;
 int red = 180;
-bool timeKeeping = true;
+bool timeKeeping = false;
 const float discrimHW = 0.2;
 
 void createTrackBars();
@@ -20,9 +20,14 @@ void createTrackBars();
 int thresh = 100;
 int max_thresh = 255;
 RNG rng(12345);
+int largest_area = 0;
+int largest_contour_index = 0;
+Rect bounding_rect;
+vector<vector<Point>> biggestContour;
+vector<Vec4i> permHiearchy;
 
 
-void findBorder(int, void*, Mat src);
+void findBorder(Mat src);
 
 struct cVector {
 	int x;
@@ -239,7 +244,7 @@ int main() {
 
 	Mat cameraFrame;
 
-	VideoCapture cap(0); //capture the video from web cam
+	VideoCapture cap(1); //capture the video from web cam
 
 	if (!cap.isOpened())  // if not success, exit program
 	{
@@ -269,7 +274,10 @@ int main() {
 			cout << "TIMEKEEPING:readCam	: " << t << endl;
 			t = (double)getTickCount();
 		}
-		
+		//Finding the biggest border, just showing it for now, find a way to save it somehow
+		findBorder(imgOriginal);
+
+		//The rgb normalised container material
 		Mat rgbNorm(imgOriginal.rows, imgOriginal.cols, CV_8UC3);
 		
 		//convert to normalized rgb space
@@ -327,8 +335,7 @@ int main() {
 		}
 		copyMakeBorder(thresImg, thresImg, GRIDSIZE +1, GRIDSIZE +1 , GRIDSIZE +1 , GRIDSIZE +1 , BORDER_CONSTANT, 0);
 		
-		//Test border shit here
-		findBorder(0, 0, thresImg);
+		
 
 		if (timeKeeping) {
 			t = ((double)getTickCount() - t) / getTickFrequency();
@@ -372,7 +379,7 @@ int main() {
 		cv::imshow("normalized", rgbNorm);
 		cv::imshow("thresholded", thresImg);
 
-		waitKey(500);
+		waitKey(3);
 	}
 
 
@@ -386,24 +393,56 @@ void createTrackBars() {
 	cvCreateTrackbar("B", "Control", &blue, 255);
 }
 
-void findBorder(int, void*, Mat src) {
-	Mat canny_output;
-
+void findBorder(Mat src) {
+	Mat tempImg, canny_output;
+	//Making a clone of the camera feed image
+	tempImg = src.clone();
 	vector<vector<Point>> contours;
 
 	vector<Vec4i> hiearchy;
+	//Converting to HSV
+	cvtColor(tempImg, tempImg, CV_BGR2HSV);
 
-	Canny(src, canny_output, thresh, thresh*2, 3);
-
-	findContours(canny_output, contours, hiearchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE, Point(0, 0));
-
+	//Sensitivity of threshold, higher number = bigger area to take in
+	int sensitivity = 20;
+	//Thresholding
+	inRange(tempImg, Scalar(73 - sensitivity, 18, 18), Scalar(73 + sensitivity, 255, 255), canny_output);
+	//Median blur to remove some noise
+	medianBlur(canny_output, canny_output, 7);
+	
+	//Find the contours, and save them in contours vector vector
+	findContours(canny_output, contours, hiearchy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
+	
+	//Empty material to store the drawing of the contour
 	Mat drawing = Mat::zeros(canny_output.size(), CV_8UC3);
-
-	for (int i = 0; i < contours.size(); i++) {
-		Scalar color = Scalar(0, 0, 255);
-		drawContours(drawing, contours, i, color, 2, 8, hiearchy, 0, Point());
+	// iterate through each contour.
+	for (int i = 0; i < contours.size(); i++)
+	{
+		//  Find the area of contour
+		double contour_area = contourArea(contours[i], false);
+		if (contour_area > largest_area) {
+			//Save the new biggest contour
+			largest_area = contour_area;
+			//Emptying the biggest contour container, as a newer, bigger one has been found
+			biggestContour.empty();
+			biggestContour.insert(biggestContour.begin(), contours[i]);
+			
+			// Store the index of largest contour
+			largest_contour_index = 0;
+			// Find the bounding rectangle for biggest contour
+			bounding_rect = boundingRect(biggestContour[0]);
+		}
 	}
-
+	//Green colour
+	Scalar color = Scalar(0, 255, 0);
+	if (largest_area > 1000) {
+		//Draw the found contours
+		drawContours(drawing, biggestContour, 0, color, CV_FILLED, 8, hiearchy, 0, Point());
+		//Draw the bounding box the found "object"
+		rectangle(drawing, bounding_rect, Scalar(0, 255, 0), 2, 8, 0);
+	}
+	//Show the resulting biggest contour "object"
 	namedWindow("Contours", CV_WINDOW_AUTOSIZE);
 	imshow("Contours", drawing);
+
 }
