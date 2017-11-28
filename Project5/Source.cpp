@@ -7,11 +7,12 @@ using namespace cv;
 
 const int GRIDSIZE = 1;
 
-int blue = 0;
-int green = 40;
-int red = 180;
+int r = 180;
+int g = 40;
+
 bool timeKeeping = true;
 const float discrimHW = 0.2;
+const int rgConvThreshold = 150;
 
 void createTrackBars();
 
@@ -47,41 +48,69 @@ struct glyphObj {
 	int nr;
 };
 
-void dropFire(uchar * pixel, glyphObj &store, int width, int y, int x ) {
+void dropFire(uchar * pixel, glyphObj &store, int &width, int y, int x, cVector &from) {
 	*pixel = store.nr;
-	store.list.push_back(cVector(x, y));
+	from.x = x;
+	from.y = y;
+	store.list.push_back(from);
 
 
 	if (*(pixel + GRIDSIZE) == 255) {
-		dropFire(pixel + GRIDSIZE, store,  width, y, x+GRIDSIZE);
+		dropFire(pixel + GRIDSIZE, store, width, y, x + GRIDSIZE, from);
 	}
-	if(*(pixel + (width*GRIDSIZE)) == 255){
-		dropFire(pixel + (width*GRIDSIZE), store, width, y +GRIDSIZE, x);
+	if (*(pixel + width) == 255) {
+		dropFire(pixel + width, store, width, y + GRIDSIZE, x, from);
 	}
-	
+
 	if (*(pixel - GRIDSIZE) == 255) {
-		dropFire(pixel - GRIDSIZE, store,  width, y , x -GRIDSIZE);
+		dropFire(pixel - GRIDSIZE, store, width, y, x - GRIDSIZE, from);
 	}
-	
-	if (*(pixel - (width*GRIDSIZE)) == 255) {
-		dropFire(pixel - (width*GRIDSIZE), store, width, y-GRIDSIZE , x);
+
+	if (*(pixel - width) == 255) {
+		dropFire(pixel - width, store, width, y - GRIDSIZE, x, from);
+	}
+}
+
+void dropFireNew(uchar * pixel, glyphObj &store, int &width, int y, int x, cVector &from) {
+	*pixel = store.nr;
+	from.x = x;
+	from.y = y;
+	store.list.push_back(from);
+
+
+	if (*(pixel + GRIDSIZE) == 255) {
+		dropFireNew(pixel + GRIDSIZE, store, width, y, x + GRIDSIZE, from);
+	}
+	if (*(pixel + width) == 255) {
+		dropFireNew(pixel + width, store, width, y + GRIDSIZE, x, from);
+	}
+
+	if (*(pixel - GRIDSIZE) == 255) {
+		dropFireNew(pixel - GRIDSIZE, store, width, y, x - GRIDSIZE, from);
+	}
+
+	if (*(pixel - width) == 255) {
+		dropFireNew(pixel - width, store, width, y - GRIDSIZE, x, from);
 	}
 }
 
 void grassFireBlobDetection(Mat &biImg, vector<glyphObj> &blobs) {
 	int nRows = biImg.rows;
 	int nCols = biImg.cols;
+	int rowSize = nCols * GRIDSIZE;
 	uchar * p;
-
+	uchar * passer;
+	glyphObj currentBlob;
+	cVector assigner;
 	int col = 245;
 	for (int i = GRIDSIZE + 1; i < nRows - GRIDSIZE - 1; i += GRIDSIZE) {
 		p = biImg.ptr<uchar>(i);
 		for (int j = GRIDSIZE; j < nCols - GRIDSIZE; j += GRIDSIZE) {
 			if (p[j] == 255) {
-				glyphObj currentBlob;
 				blobs.push_back(currentBlob);
 				blobs.back().nr = col;
-				dropFire(p + j, blobs.back(), nCols, i, j);
+				passer = &p[j];
+				dropFire(passer, blobs.back(), rowSize, i, j, assigner);
 				col -= 10;
 				if (col < 20) {
 					col = 245;
@@ -92,12 +121,75 @@ void grassFireBlobDetection(Mat &biImg, vector<glyphObj> &blobs) {
 }
 
 
+
+void grassFireBlobDetectionNew(Mat &biImg, vector<glyphObj> &blobs) {
+	int nRows = biImg.rows;
+	int nCols = biImg.cols;
+	int rowSize = nCols * GRIDSIZE;
+	uchar * p;
+	uchar * passer;
+	glyphObj currentBlob;
+	cVector assigner;
+	int col = 245;
+	for (int i = GRIDSIZE + 1; i < nRows - GRIDSIZE - 1; i += GRIDSIZE) {
+		p = biImg.ptr<uchar>(i);
+		for (int j = GRIDSIZE; j < nCols - GRIDSIZE; j += GRIDSIZE) {
+			if (p[j] == 255) {
+				blobs.push_back(currentBlob);
+				blobs.back().nr = col;
+				passer = &p[j];
+				dropFireNew(passer, blobs.back(), rowSize, i, j, assigner);
+				col -= 10;
+				if (col < 20) {
+					col = 245;
+				}
+			}
+		}
+	}
+}
+
+
+void lookUpBgr2rg(Mat &in, Mat &out) {
+	//convert to normalized rgb space
+
+	//start by creating lookup table
+	int divLUT[768][256]; //division lookuptavle;
+	for (int i = rgConvThreshold; i < 768; i++) {
+		for (int j = 0; j < 256; j++) {
+			divLUT[i][j] = (j * 255)/i;
+		}
+	}
+	//then convert using LUT
+	int nRows = in.rows;
+	int nCols = in.cols * 3;
+	int sum = 0;
+	uchar * p;
+	uchar * cp;
+
+	for (int i = 0; i < nRows; i++) {
+		p = in.ptr<uchar>(i);
+		cp = out.ptr<uchar>(i);
+		for (int j = 0; j < nCols; j += 3) {
+			sum = p[j] + p[j + 1] + p[j + 2];
+			if (sum < rgConvThreshold) {
+				cp[j] = 0;
+				cp[j + 1] = 0;
+				cp[j + 2] = 0;
+				continue;
+			}
+			cp[j] = divLUT[sum][p[j]];
+			cp[j+1] = divLUT[sum][p[j+1]];
+			cp[j+2] = divLUT[sum][p[j+2]];
+		}
+	}
+}
+
 void blobAnalysis(vector<glyphObj> &blobs, Mat &drawImg) {
 
 
 	//printing out objects
-	int minSize = 30 / GRIDSIZE;
-	int maxSize = 4000 / GRIDSIZE;
+	int minSize = 200 / GRIDSIZE;
+	int maxSize = 8000 / GRIDSIZE;
 	for (auto &i : blobs) {
 		//find center
 		int size;
@@ -110,7 +202,7 @@ void blobAnalysis(vector<glyphObj> &blobs, Mat &drawImg) {
 		int largestY = 0;
 		int smallestY = 10000;
 		int radiusDist = 0;
-
+		int searchDist = 0;
 		for (auto &v : i.list) {
 			if (v.x < smallestX) { smallestX = v.x; }
 			if (v.x > largestX) { largestX = v.x; }
@@ -123,119 +215,159 @@ void blobAnalysis(vector<glyphObj> &blobs, Mat &drawImg) {
 
 		//check discriminate basedd on height width relation
 		if (heightWidth > (1 + discrimHW) || heightWidth <(1 - discrimHW)) { continue; }
-		centerX = centerX / (float)size;
-		centerY = centerY / (float)size;
+		centerX = (smallestX + largestX) / 2;
+		centerY = (smallestY + largestY)/ 2;
 		radiusDist = ((float)((float)(largestX - centerX) + (centerX - smallestX) + (largestY - centerY) + (centerY - smallestY))) / 4;
 		i.center.x = centerX;
 		i.center.y = centerY;
-		circle(drawImg, Point(centerX - GRIDSIZE, centerY - GRIDSIZE), radiusDist, Scalar(0, 0, 255), 5);
-		radiusDist = (float)radiusDist * 0.5;
-		radiusDist = radiusDist * radiusDist;
+		circle(drawImg, Point(centerX - GRIDSIZE, centerY - GRIDSIZE), 2, Scalar(0, 0, 255), 5);
+		searchDist = (float)radiusDist * 0.7;
+		searchDist = searchDist * searchDist;
 		//find closest pixel
 		int dist = 10000;
 		vector<cVector> points;
 		for (auto &v : i.list) {
 			dist = (v.x - i.center.x) * (v.x - i.center.x) + (v.y - i.center.y) * (v.y - i.center.y);
-			if (dist < radiusDist) {
+			if (dist < searchDist) {
 				points.push_back(v);
 			}
 		}
-		i.rotation.x = 0;
-		i.rotation.y = 0;
+		if (points.size() == 0) { continue; }
+		float rotX = 0;
+		float rotY = 0;
+
 		for (auto &p : points) {
-			i.rotation.x += p.x - centerX;
-			i.rotation.y += p.y - centerY;
+			rotX+= p.x - centerX;
+			rotY += p.y - centerY;
 		}
-		if (points.size() != 0) {
-			i.rotation.x = i.rotation.x / (float)points.size();
-			i.rotation.y = i.rotation.y / (float)points.size();
+	
+		rotX /= points.size();
+		rotY /= points.size();
+	
+		//set vector size to be radius
+		float vecDist = sqrt(rotX * rotX + rotY * rotY);
+		if (vecDist == 0) {
+			continue;
+		}
+		vecDist = radiusDist/ vecDist;
 
-			line(drawImg, Point(i.center.x - GRIDSIZE, i.center.y - GRIDSIZE), Point(i.center.x + i.rotation.x - GRIDSIZE, i.center.y + i.rotation.y - GRIDSIZE), Scalar(0, 255, 0), 2);
-
-			//use vectors to find bit pixels.
-			cVector rotCclock;
-			rotCclock.x = -i.rotation.y*0.4;
-			rotCclock.y = i.rotation.x*0.4;
-			cVector rotClock;
-			rotClock.x = i.rotation.y*0.4;
-			rotClock.y = -i.rotation.x*0.4;
-			cVector reverse;
-			reverse.x = -i.rotation.x*0.8;
-			reverse.y = -i.rotation.y*0.8;
-
-			const Scalar cirCol(0, 255, 0);
-			const int cirSize = 1;
-			circle(drawImg, Point(centerX - GRIDSIZE, centerY - GRIDSIZE), sqrt(radiusDist), Scalar(255, 0, 255), 2);
+		i.rotation.x = rotX * vecDist;
+		i.rotation.y = rotY * vecDist;
 
 
-			vector<cVector> searchPoints;
-			cVector point(i.center.x + rotCclock.x - GRIDSIZE, i.center.y + rotCclock.y - GRIDSIZE);
-			circle(drawImg, Point(point.x, point.y), cirSize, cirCol, 1);
-			searchPoints.push_back(point);
+		line(drawImg, Point(i.center.x - GRIDSIZE, i.center.y - GRIDSIZE), Point(i.center.x + i.rotation.x - GRIDSIZE, i.center.y + i.rotation.y - GRIDSIZE), Scalar(0, 255, 0), 2);
 
-			point = cVector(i.center.x + rotClock.x - GRIDSIZE, i.center.y + rotClock.y + -GRIDSIZE);
-			circle(drawImg, Point(point.x, point.y), cirSize, cirCol, 1);
-			searchPoints.push_back(point);
+		//use vectors to find bit pixels.
 
-			point = cVector(i.center.x + rotCclock.x + reverse.x - GRIDSIZE, i.center.y + rotCclock.y + reverse.y - GRIDSIZE);
-			circle(drawImg, Point(point.x, point.y), cirSize, cirCol, 1);
-			searchPoints.push_back(point);
+		i.center.x = centerX + rotX*0.4;
+		i.center.y = centerY + rotY*0.4;
 
-			point = cVector(i.center.x + rotClock.x + reverse.x - GRIDSIZE, i.center.y + rotClock.y + reverse.y - GRIDSIZE);
-			circle(drawImg, Point(point.x, point.y), cirSize, cirCol, 1);
-			searchPoints.push_back(point);
 
-			point = cVector(i.center.x + rotCclock.x * 3 - GRIDSIZE, i.center.y + rotCclock.y * 3 - GRIDSIZE);
-			circle(drawImg, Point(point.x, point.y), cirSize, cirCol, 1);
-			searchPoints.push_back(point);
+		cVector rotCclock;
+		rotCclock.x = -rotY*0.38;
+		rotCclock.y = rotX*0.38;
+		cVector rotClock;
+		rotClock.x = rotY*0.38;
+		rotClock.y = -rotX*0.38;
+		cVector reverse;
+		reverse.x = -rotX*0.9;
+		reverse.y = -rotY*0.9;
 
-			point = cVector(i.center.x + rotClock.x * 3 - GRIDSIZE, i.center.y + rotClock.y * 3 - GRIDSIZE);
-			circle(drawImg, Point(point.x, point.y), cirSize, cirCol, 1);
-			searchPoints.push_back(point);
+		
+		const int cirSize = 1;
 
-			point = cVector(i.center.x + rotCclock.x * 3 + reverse.x - GRIDSIZE, i.center.y + rotCclock.y * 3 + reverse.y - GRIDSIZE);
-			circle(drawImg, Point(point.x, point.y), cirSize, cirCol, 1);
-			searchPoints.push_back(point);
+		vector<cVector> searchPoints;
+		cVector point(i.center.x + rotCclock.x -GRIDSIZE, i.center.y + rotCclock.y - GRIDSIZE);
+		searchPoints.push_back(point);
 
-			point = cVector(i.center.x + rotClock.x * 3 + reverse.x - GRIDSIZE, i.center.y + rotClock.y * 3 + reverse.y - GRIDSIZE);
-			circle(drawImg, Point(point.x, point.y), cirSize, cirCol, 1);
-			searchPoints.push_back(point);
+		point = cVector(i.center.x + rotClock.x - GRIDSIZE, i.center.y + rotClock.y - GRIDSIZE);
+		searchPoints.push_back(point);
 
-			int bitCounter = 0;
-			uchar * colPtr;
-			int colCounter = 0;
-			int iterations = 0;
-			for (auto &sp : searchPoints) {
-				colCounter = 0;
-				colPtr = drawImg.ptr(sp.y);
-				colCounter += *(colPtr + sp.x);
-				colCounter += *(colPtr + sp.x + 1);
-				colCounter += *(colPtr + sp.x + 2);
-				if (colCounter < 100) {
-					bitCounter = pow(2, iterations);
-				}
-				else {
-				}
-				iterations++;
+		point = cVector(i.center.x + rotCclock.x + reverse.x - GRIDSIZE, i.center.y + rotCclock.y + reverse.y - GRIDSIZE);
+		
+		searchPoints.push_back(point);
+
+		point = cVector(i.center.x + rotClock.x + reverse.x - GRIDSIZE, i.center.y + rotClock.y + reverse.y - GRIDSIZE);
+		searchPoints.push_back(point);
+
+		point = cVector(i.center.x + rotCclock.x * 3 - GRIDSIZE, i.center.y + rotCclock.y * 3 - GRIDSIZE);
+		searchPoints.push_back(point);
+
+		point = cVector(i.center.x + rotClock.x * 3 - GRIDSIZE, i.center.y + rotClock.y * 3 - GRIDSIZE);
+		searchPoints.push_back(point);
+
+		point = cVector(i.center.x + rotCclock.x * 3 + reverse.x - GRIDSIZE, i.center.y + rotCclock.y * 3 + reverse.y - GRIDSIZE);
+		searchPoints.push_back(point);
+
+		point = cVector(i.center.x + rotClock.x * 3 + reverse.x - GRIDSIZE, i.center.y + rotClock.y * 3 + reverse.y - GRIDSIZE);
+		searchPoints.push_back(point);
+		
+		int bitCounter = 0;
+		uchar * colPtr;
+		int iterations = 0;
+		for (auto &sp : searchPoints) {
+			
+			Vec3b intensity = drawImg.at<Vec3b>(sp.y, sp.x);
+
+			if (intensity[0]< 125 && intensity[1] < 125 && intensity[2] < 125) {
+				bitCounter += pow(2, iterations);
+				circle(drawImg, Point(sp.x, sp.y), cirSize, Scalar(0,255,0), 1);
 			}
-			i.nr = bitCounter;
-
+			else {
+				circle(drawImg, Point(sp.x, sp.y), cirSize, Scalar(0,0,255), 1);
+			}
+			iterations++;
 		}
+		circle(drawImg, Point(centerX - GRIDSIZE, centerY - GRIDSIZE), sqrt(searchDist), Scalar(255, 0, 255), 2);
+
+	
+		i.nr = bitCounter;
+		putText(drawImg, to_string(bitCounter), Point(centerX, centerY - sqrt(radiusDist) - 5), FONT_HERSHEY_SIMPLEX, 1, Scalar(255,0,0));
+		//waitKey(0) == '27';
+
 	}
 
 }
 
-void normRGBthres(Mat &input, Mat &output , int threshold) {
+void thresholdSpeedy(Mat &in, Mat &out ) {
 
-	//create lookup table
+	uchar * p;
+	uchar * cp;
+	int * ip; 
+	int nRows = in.rows;
+	int nCols = in.cols;
+
+	int lookup[255][255];
+	int minPossibleValue = 0;
 
 
-
+	for (int i = minPossibleValue; i < 255; i++) {
+		ip = lookup[i];
+		for (int j = minPossibleValue; j < 255; j++) {
+			if (((i - g)*(i - g) + (j - r)*(j - r)) < 3000) {
+				*(ip + j) = 255;
+			}
+			else {
+				*(ip + j) = 0;
+			}
+		}
+	}
+	int color = 0;
+	for (int i = 0; i < nRows; i++) {
+		p = in.ptr<uchar>(i);
+		cp = out.ptr<uchar>(i);
+		for (int j = 0; j < nCols; j ++) {
+			color = j * 3;
+			cp[j] = lookup[p[color + 1]][p[color + 2]];
+		}
+	}
 }
 
 int main() {
 
 	double t = (double)getTickCount();
+	double compa;
+	double tots = 0;
 
 	Mat cameraFrame;
 
@@ -256,9 +388,11 @@ int main() {
 		Mat imgOriginal;
 		
 		system("CLS");
+		cout << "TIMEKEEPING:dif	: " << tots << endl;
 		t = (double)getTickCount();
 		bool bSuccess = cap.read(imgOriginal); // read a new frame from video
 		
+		//imgOriginal = imread("test.png", CV_LOAD_IMAGE_COLOR);
 		if (!bSuccess) //if not success, break loop
 		{
 			cout << "Cannot read a frame from video stream" << endl;
@@ -270,65 +404,43 @@ int main() {
 			t = (double)getTickCount();
 		}
 		
+
 		Mat rgbNorm(imgOriginal.rows, imgOriginal.cols, CV_8UC3);
-		
-		//convert to normalized rgb space
-		int nRows = rgbNorm.rows;
-		int nCols = rgbNorm.cols*3;
-		float sum = 0;
-		uchar * p;
-		uchar * cp; 
-		for (int i = 0; i < nRows; i++) {
-			p = imgOriginal.ptr<uchar>(i);
-			cp = rgbNorm.ptr<uchar>(i);
-			for (int j = 0; j < nCols; j += 3) {
-				sum = p[j] + p[j + 1] + p[j + 2];
-				if (sum < 150) {
-					cp[j] = 0;
-					cp[j + 1] = 0;
-					cp[j + 2] = 0;
-					continue;
-				}
-				cp[j] = (uchar)(p[j]*255/sum);
-				cp[j+1] = (uchar)(p[j+1] * 255 / sum);
-				cp[j + 2] = (uchar)(p[j + 2] * 255 / sum);
-			}
-		}
-		
-		if (timeKeeping) {
-			t = ((double)getTickCount() - t) / getTickFrequency();
-			cout << "TIMEKEEPING:RGBnorm	: " << t << endl;
-			t = (double)getTickCount();
-		}
-		//threshold the image
 		Mat thresImg(imgOriginal.rows, imgOriginal.cols, CV_8UC1);
-		
-		nRows = rgbNorm.rows;
-		nCols = rgbNorm.cols;
+		Mat thresImg2(imgOriginal.rows, imgOriginal.cols, CV_8UC1);
 
-
-		for (int i = 0; i < nRows; i++) {
-			p = rgbNorm.ptr<uchar>(i);
-			cp = thresImg.ptr<uchar>(i);
-		
-			for (int j = 0 ; j < nCols; j += 1) {
-				int color = j * 3;
-				if ((p[color + 1] - green)*(p[color + 1] - green) + (p[color + 2] - red)*(p[color + 2] - red) < 1600) {
-					cp[j] = 255;
-					continue;
-				}
-				cp[j] = 0;
-			}
-		}
+		vector<glyphObj> blobs2;
+		vector<glyphObj> blobs;
 		if (timeKeeping) {
 			t = ((double)getTickCount() - t) / getTickFrequency();
-			cout << "TIMEKEEPING:Threshold	: " << t << endl;
+			cout << "TIMEKEEPING:instanceMat	: " << t << endl;
 			t = (double)getTickCount();
 		}
-		copyMakeBorder(thresImg, thresImg, GRIDSIZE +1, GRIDSIZE +1 , GRIDSIZE +1 , GRIDSIZE +1 , BORDER_CONSTANT, 0);
+
+		lookUpBgr2rg(imgOriginal, rgbNorm);
+
+		if (timeKeeping) {
+			t = ((double)getTickCount() - t) / getTickFrequency();
+			cout << "TIMEKEEPING:RG lookup	: " << t << endl;
+			t = (double)getTickCount();
+		}
+
 		
+		thresholdSpeedy(rgbNorm, thresImg);
+
+		if (timeKeeping) {
+			
+			t = ((double)getTickCount() - t) / getTickFrequency();
+			compa = t;
+			cout << "TIMEKEEPING:thresspeedy	: " << t << endl;
+			t = (double)getTickCount();
+		}
+
+
+
+		copyMakeBorder(thresImg, thresImg, GRIDSIZE + 1, GRIDSIZE + 1, GRIDSIZE + 1, GRIDSIZE + 1, BORDER_CONSTANT, 0);
 		//Test border shit here
-		findBorder(0, 0, thresImg);
+		//findBorder(0, 0, thresImg);
 
 		if (timeKeeping) {
 			t = ((double)getTickCount() - t) / getTickFrequency();
@@ -338,25 +450,34 @@ int main() {
 
 
 		Mat element = getStructuringElement(MORPH_ELLIPSE, Size(3, 3), Point(2, 2));
-		morphologyEx(thresImg, thresImg, MORPH_DILATE, element );
+		//morphologyEx(thresImg, thresImg, MORPH_CLOSE, element );
 
-
+		thresImg2 = thresImg.clone();
 		if (timeKeeping) {
 			t = ((double)getTickCount() - t) / getTickFrequency();
 			cout << "TIMEKEEPING:MORPH	: " << t << endl;
 			t = (double)getTickCount();
 		}
 
-
-
-
 		//blob detection
-		vector<glyphObj> blobs;
+
 		grassFireBlobDetection(thresImg, blobs);
 
 		if (timeKeeping) {
 			t = ((double)getTickCount() - t) / getTickFrequency();
+			compa = t;
 			cout << "TIMEKEEPING:BlobDetect	: " << t << endl;
+			t = (double)getTickCount();
+		}
+
+
+		grassFireBlobDetectionNew(thresImg2, blobs2);
+
+		if (timeKeeping) {
+			t = ((double)getTickCount() - t) / getTickFrequency();
+			tots += (t - compa ) * 1000;
+			cout << "TIMEKEEPING:Blobnew	: " << t << endl;
+			
 			t = (double)getTickCount();
 		}
 
@@ -369,10 +490,11 @@ int main() {
 		}
 
 		cv::imshow("original", imgOriginal);
-		cv::imshow("normalized", rgbNorm);
-		cv::imshow("thresholded", thresImg);
+		cv::imshow("RG NORM ", rgbNorm);
+		cv::imshow("grassfire", thresImg);
+		cv::imshow("grassfire new", thresImg2);
 
-		waitKey(500);
+		waitKey(2);
 	}
 
 
@@ -381,9 +503,8 @@ int main() {
 
 void createTrackBars() {
 	namedWindow("Control", CV_WINDOW_AUTOSIZE);
-	cvCreateTrackbar("R", "Control", &red, 255);
-	cvCreateTrackbar("G", "Control", &green, 255);
-	cvCreateTrackbar("B", "Control", &blue, 255);
+	cvCreateTrackbar("red", "Control", &r, 255);
+	cvCreateTrackbar("green", "Control", &g, 255);
 }
 
 void findBorder(int, void*, Mat src) {
