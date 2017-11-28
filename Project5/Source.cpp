@@ -17,12 +17,6 @@ const int rgConvThreshold = 150;
 void createTrackBars();
 
 
-//Finding border edge
-int thresh = 100;
-int max_thresh = 255;
-RNG rng(12345);
-
-
 void findBorder(int, void*, Mat src);
 
 struct cVector {
@@ -186,7 +180,6 @@ void lookUpBgr2rg(Mat &in, Mat &out) {
 
 void blobAnalysis(vector<glyphObj> &blobs, Mat &drawImg) {
 
-
 	//printing out objects
 	int minSize = 200 / GRIDSIZE;
 	int maxSize = 8000 / GRIDSIZE;
@@ -253,7 +246,6 @@ void blobAnalysis(vector<glyphObj> &blobs, Mat &drawImg) {
 
 		i.rotation.x = rotX * vecDist;
 		i.rotation.y = rotY * vecDist;
-
 
 		line(drawImg, Point(i.center.x - GRIDSIZE, i.center.y - GRIDSIZE), Point(i.center.x + i.rotation.x - GRIDSIZE, i.center.y + i.rotation.y - GRIDSIZE), Scalar(0, 255, 0), 2);
 
@@ -328,6 +320,20 @@ void blobAnalysis(vector<glyphObj> &blobs, Mat &drawImg) {
 	}
 
 }
+
+void createTrackBars();
+void findBorder(Mat src);
+
+//Finding border edge
+int thresh = 100;
+int max_thresh = 255;
+RNG rng(12345);
+int largest_area = 0;
+int largest_contour_index = 0;
+Rect bounding_rect;
+vector<vector<Point>> biggestContour;
+vector<Vec4i> permHiearchy;
+
 
 void thresholdSpeedy(Mat &in, Mat &out ) {
 
@@ -450,7 +456,7 @@ int main() {
 
 
 		Mat element = getStructuringElement(MORPH_ELLIPSE, Size(3, 3), Point(2, 2));
-		//morphologyEx(thresImg, thresImg, MORPH_CLOSE, element );
+		morphologyEx(thresImg, thresImg, MORPH_CLOSE, element );
 
 		thresImg2 = thresImg.clone();
 		if (timeKeeping) {
@@ -528,3 +534,58 @@ void findBorder(int, void*, Mat src) {
 	namedWindow("Contours", CV_WINDOW_AUTOSIZE);
 	imshow("Contours", drawing);
 }
+
+/*
+void findBorder(Mat src) {
+	Mat tempImg, canny_output;
+	//Making a clone of the camera feed image
+	tempImg = src.clone();
+	vector<vector<Point>> contours;
+
+	vector<Vec4i> hiearchy;
+	//Converting to HSV
+	cvtColor(tempImg, tempImg, CV_BGR2HSV);
+
+	//Sensitivity of threshold, higher number = bigger area to take in
+	int sensitivity = 20;
+	//Thresholding
+	inRange(tempImg, Scalar(73 - sensitivity, 18, 18), Scalar(73 + sensitivity, 255, 255), canny_output);
+	//Median blur to remove some noise
+	medianBlur(canny_output, canny_output, 7);
+	
+	//Find the contours, and save them in contours vector vector
+	findContours(canny_output, contours, hiearchy, CV_RETR_LIST, CV_CHAIN_APPROX_SIMPLE);
+	
+	//Empty material to store the drawing of the contour
+	Mat drawing = Mat::zeros(canny_output.size(), CV_8UC3);
+	// iterate through each contour.
+	for (int i = 0; i < contours.size(); i++)
+	{
+		//  Find the area of contour
+		double contour_area = contourArea(contours[i], false);
+		if (contour_area > largest_area) {
+			//Save the new biggest contour
+			largest_area = contour_area;
+			//Emptying the biggest contour container, as a newer, bigger one has been found
+			biggestContour.empty();
+			biggestContour.insert(biggestContour.begin(), contours[i]);
+			
+			// Store the index of largest contour
+			largest_contour_index = 0;
+			// Find the bounding rectangle for biggest contour
+			bounding_rect = boundingRect(biggestContour[0]);
+		}
+	}
+	//Green colour
+	Scalar color = Scalar(0, 255, 0);
+	if (largest_area > 1000) {
+		//Draw the found contours
+		drawContours(drawing, biggestContour, 0, color, CV_FILLED, 8, hiearchy, 0, Point());
+		//Draw the bounding box the found "object"
+		rectangle(drawing, bounding_rect, Scalar(0, 255, 0), 2, 8, 0);
+	}
+	//Show the resulting biggest contour "object"
+	namedWindow("Contours", CV_WINDOW_AUTOSIZE);
+	imshow("Contours", drawing);
+
+}*/
