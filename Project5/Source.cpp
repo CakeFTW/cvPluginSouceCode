@@ -10,7 +10,7 @@ const int GRIDSIZE = 1;
 int r = 180;
 int g = 40;
 
-bool timeKeeping = true;
+bool timeKeeping = false;
 const float discrimHW = 0.2;
 const int rgConvThreshold = 150;
 
@@ -48,7 +48,6 @@ void dropFire(uchar * pixel, glyphObj &store, int &width, int y, int x, cVector 
 	from.y = y;
 	store.list.push_back(from);
 
-
 	if (*(pixel + GRIDSIZE) == 255) {
 		dropFire(pixel + GRIDSIZE, store, width, y, x + GRIDSIZE, from);
 	}
@@ -70,7 +69,6 @@ void dropFireNew(uchar * pixel, glyphObj &store, int &width, int y, int x, cVect
 	from.x = x;
 	from.y = y;
 	store.list.push_back(from);
-
 
 	if (*(pixel + GRIDSIZE) == 255) {
 		dropFireNew(pixel + GRIDSIZE, store, width, y, x + GRIDSIZE, from);
@@ -99,7 +97,7 @@ void grassFireBlobDetection(Mat &biImg, vector<glyphObj> &blobs) {
 	int col = 245;
 	for (int i = GRIDSIZE + 1; i < nRows - GRIDSIZE - 1; i += GRIDSIZE) {
 		p = biImg.ptr<uchar>(i);
-		for (int j = GRIDSIZE; j < nCols - GRIDSIZE; j += GRIDSIZE) {
+		for (int j = GRIDSIZE+1; j < nCols - GRIDSIZE-1; j += GRIDSIZE) {
 			if (p[j] == 255) {
 				blobs.push_back(currentBlob);
 				blobs.back().nr = col;
@@ -127,7 +125,7 @@ void grassFireBlobDetectionNew(Mat &biImg, vector<glyphObj> &blobs) {
 	int col = 245;
 	for (int i = GRIDSIZE + 1; i < nRows - GRIDSIZE - 1; i += GRIDSIZE) {
 		p = biImg.ptr<uchar>(i);
-		for (int j = GRIDSIZE; j < nCols - GRIDSIZE; j += GRIDSIZE) {
+		for (int j = GRIDSIZE+1; j < nCols - GRIDSIZE-1; j += GRIDSIZE) {
 			if (p[j] == 255) {
 				blobs.push_back(currentBlob);
 				blobs.back().nr = col;
@@ -160,10 +158,10 @@ void lookUpBgr2rg(Mat &in, Mat &out) {
 	uchar * p;
 	uchar * cp;
 
-	for (int i = 0; i < nRows; i++) {
+	for (int i = 0; i < nRows; i += GRIDSIZE) {
 		p = in.ptr<uchar>(i);
 		cp = out.ptr<uchar>(i);
-		for (int j = 0; j < nCols; j += 3) {
+		for (int j = 0; j < nCols; j += 3*GRIDSIZE) {
 			sum = p[j] + p[j + 1] + p[j + 2];
 			if (sum < rgConvThreshold) {
 				cp[j] = 0;
@@ -315,7 +313,7 @@ void blobAnalysis(vector<glyphObj> &blobs, Mat &drawImg) {
 	
 		i.nr = bitCounter;
 		putText(drawImg, to_string(bitCounter), Point(centerX, centerY - sqrt(radiusDist) - 5), FONT_HERSHEY_SIMPLEX, 1, Scalar(255,0,0));
-		//waitKey(0) == '27';
+		//cout << "found an object with value " << i.nr << endl;
 
 	}
 
@@ -350,7 +348,7 @@ void thresholdSpeedy(Mat &in, Mat &out ) {
 	for (int i = minPossibleValue; i < 255; i++) {
 		ip = lookup[i];
 		for (int j = minPossibleValue; j < 255; j++) {
-			if (((i - g)*(i - g) + (j - r)*(j - r)) < 3000) {
+			if (((i - g)*(i - g) + (j - r)*(j - r)) < 3600) {
 				*(ip + j) = 255;
 			}
 			else {
@@ -359,10 +357,10 @@ void thresholdSpeedy(Mat &in, Mat &out ) {
 		}
 	}
 	int color = 0;
-	for (int i = 0; i < nRows; i++) {
+	for (int i = 0; i < nRows; i+=GRIDSIZE) {
 		p = in.ptr<uchar>(i);
 		cp = out.ptr<uchar>(i);
-		for (int j = 0; j < nCols; j ++) {
+		for (int j = 0; j < nCols; j += GRIDSIZE) {
 			color = j * 3;
 			cp[j] = lookup[p[color + 1]][p[color + 2]];
 		}
@@ -374,6 +372,9 @@ int main() {
 	double t = (double)getTickCount();
 	double compa;
 	double tots = 0;
+	long counter = 0;
+	double startTime;
+
 
 	Mat cameraFrame;
 
@@ -389,21 +390,22 @@ int main() {
 
 	cap.set( CV_CAP_PROP_FRAME_WIDTH, 640);
 	cap.set( CV_CAP_PROP_FRAME_HEIGHT, 480);
+	startTime = ((double)getTickCount()) / getTickFrequency();
 	while (true)
 	{
 		Mat imgOriginal;
 		
-		system("CLS");
-		cout << "TIMEKEEPING:dif	: " << tots << endl;
-		t = (double)getTickCount();
+		//system("CLS");
+		//cout << "TIMEKEEPING:dif	: " << tots << endl;
+		
 		bool bSuccess = cap.read(imgOriginal); // read a new frame from video
 		
 		//imgOriginal = imread("test.png", CV_LOAD_IMAGE_COLOR);
-		if (!bSuccess) //if not success, break loop
+		/*if (!bSuccess) //if not success, break loop
 		{
 			cout << "Cannot read a frame from video stream" << endl;
 			break;
-		}
+		}*/
 		if (timeKeeping) {
 			t = ((double)getTickCount() - t) / getTickFrequency();
 			cout << "TIMEKEEPING:readCam	: " << t << endl;
@@ -411,9 +413,11 @@ int main() {
 		}
 		
 
-		Mat rgbNorm(imgOriginal.rows, imgOriginal.cols, CV_8UC3);
+		Mat rgbNorm;
+		rgbNorm.create(imgOriginal.rows, imgOriginal.cols, CV_8UC3);
+
+
 		Mat thresImg(imgOriginal.rows, imgOriginal.cols, CV_8UC1);
-		Mat thresImg2(imgOriginal.rows, imgOriginal.cols, CV_8UC1);
 
 		vector<glyphObj> blobs2;
 		vector<glyphObj> blobs;
@@ -424,6 +428,7 @@ int main() {
 		}
 
 		lookUpBgr2rg(imgOriginal, rgbNorm);
+	
 
 		if (timeKeeping) {
 			t = ((double)getTickCount() - t) / getTickFrequency();
@@ -444,7 +449,7 @@ int main() {
 
 
 
-		copyMakeBorder(thresImg, thresImg, GRIDSIZE + 1, GRIDSIZE + 1, GRIDSIZE + 1, GRIDSIZE + 1, BORDER_CONSTANT, 0);
+		copyMakeBorder(thresImg, thresImg, GRIDSIZE+1, GRIDSIZE+1, GRIDSIZE+1, GRIDSIZE+1, BORDER_CONSTANT, 0);
 		//Test border shit here
 		//findBorder(0, 0, thresImg);
 
@@ -455,35 +460,37 @@ int main() {
 		}
 
 
-		Mat element = getStructuringElement(MORPH_ELLIPSE, Size(3, 3), Point(2, 2));
-		morphologyEx(thresImg, thresImg, MORPH_CLOSE, element );
 
-		thresImg2 = thresImg.clone();
+		Mat element = getStructuringElement(MORPH_ELLIPSE, Size(3, 3), Point(2, 2));
+		morphologyEx(thresImg, thresImg, MORPH_DILATE, element );
+
+
 		if (timeKeeping) {
 			t = ((double)getTickCount() - t) / getTickFrequency();
 			cout << "TIMEKEEPING:MORPH	: " << t << endl;
 			t = (double)getTickCount();
 		}
 
-		//blob detection
 
-		grassFireBlobDetection(thresImg, blobs);
+	/*	grassFireBlobDetectionNew(thresImg2, blobs2);
 
 		if (timeKeeping) {
 			t = ((double)getTickCount() - t) / getTickFrequency();
 			compa = t;
-			cout << "TIMEKEEPING:BlobDetect	: " << t << endl;
+			cout << "TIMEKEEPING:Blobnew	: " << t << endl;
+
 			t = (double)getTickCount();
 		}
+		//blob detection
+		*/
+		grassFireBlobDetection(thresImg, blobs);
 
-
-		grassFireBlobDetectionNew(thresImg2, blobs2);
 
 		if (timeKeeping) {
 			t = ((double)getTickCount() - t) / getTickFrequency();
-			tots += (t - compa ) * 1000;
-			cout << "TIMEKEEPING:Blobnew	: " << t << endl;
-			
+		
+			tots += (t - compa) * 1000;
+			cout << "TIMEKEEPING:BlobDetect	: " << t << endl;
 			t = (double)getTickCount();
 		}
 
@@ -496,13 +503,18 @@ int main() {
 		}
 
 		cv::imshow("original", imgOriginal);
-		cv::imshow("RG NORM ", rgbNorm);
-		cv::imshow("grassfire", thresImg);
-		cv::imshow("grassfire new", thresImg2);
+		//cv::imshow("RG NORM ", rgbNorm);
+		//cv::imshow("grassfire", thresImg);
 
-		waitKey(2);
+		waitKey(1);
+		t = ((double)getTickCount()) / getTickFrequency();
+		counter++;
+		if (counter % 200 == 0) {
+			cout << ((t - startTime) / counter) << endl;
+			counter = 0;
+			startTime = ((double)getTickCount()) / getTickFrequency();
+		}
 	}
-
 
 	return 0;
 }
