@@ -165,15 +165,6 @@ void preLookUpBgr2rg(Mat &in, Mat &out, int (&divLUT)[766][256]) {
 			green = p[j+1];
 			red = p[j+2];
 			sum = blue + green + red;
-			if ((int)red > 255) {
-				cout << "red" << red << endl;
-			}
-			if ((int)blue > 255) {
-				cout << "blue" << blue << endl;
-			}
-			if ((int)green > 255) {
-				cout << "green" << green << endl;
-			}
 			lutptr = divLUT[sum];
 			cp[j] = *(lutptr + blue);
 			cp[j + 1] = *(lutptr + green);
