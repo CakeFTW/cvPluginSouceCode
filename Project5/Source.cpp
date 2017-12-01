@@ -140,6 +140,39 @@ void grassFireBlobDetectionNew(Mat &biImg, vector<glyphObj> &blobs) {
 	}
 }
 
+void preLookUpBgr2rg(Mat &in, Mat &out, int (&divLUT)[768][256]) {
+	//convert to normalized rgb space
+
+	
+	//then convert using LUT
+	int nRows = in.rows;
+	int nCols = in.cols * 3;
+	int sum = 0;
+	uchar * p;
+	uchar * cp;
+
+	uchar red;
+	uchar green;
+	uchar blue;
+	int * lutptr;
+	
+	for (int i = 0; i < nRows; i += GRIDSIZE) {
+		p = in.ptr<uchar>(i);
+		cp = out.ptr<uchar>(i);
+
+		for (int j = 0; j < nCols; j += 3 * GRIDSIZE) {
+			blue = p[j];
+			green = p[j+1];
+			red = p[j+2];
+			sum = blue + green + red;
+			lutptr = divLUT[sum];
+			cp[j] = *(lutptr + blue);
+			cp[j + 1] = *(lutptr + green);
+			cp[j + 2] = *(lutptr + red);
+		}
+	}
+}
+
 
 void lookUpBgr2rg(Mat &in, Mat &out) {
 	//convert to normalized rgb space
@@ -172,6 +205,35 @@ void lookUpBgr2rg(Mat &in, Mat &out) {
 			cp[j] = divLUT[sum][p[j]];
 			cp[j+1] = divLUT[sum][p[j+1]];
 			cp[j+2] = divLUT[sum][p[j+2]];
+		}
+	}
+}
+
+void Bgr2rg(Mat &in, Mat &out) {
+	//convert to normalized rgb space
+
+	//start by creating lookup table
+	//then convert using LUT
+	int nRows = in.rows;
+	int nCols = in.cols * 3;
+	float sum = 0;
+	uchar * p;
+	uchar * cp;
+
+	for (int i = 0; i < nRows; i += GRIDSIZE) {
+		p = in.ptr<uchar>(i);
+		cp = out.ptr<uchar>(i);
+		for (int j = 0; j < nCols; j += 3 * GRIDSIZE) {
+			sum = p[j] + p[j + 1] + p[j + 2];
+			if (sum < rgConvThreshold) {
+				cp[j] = 0;
+				cp[j + 1] = 0;
+				cp[j + 2] = 0;
+				continue;
+			}
+			cp[j] = 255 * p[j]/sum;
+			cp[j + 1] = 255 * p[j+1] / sum;
+			cp[j + 2] = 255 * p[j+2] / sum;
 		}
 	}
 }
@@ -377,6 +439,18 @@ int main() {
 
 
 	Mat cameraFrame;
+	//start by creating lookup table
+	int divLUT[768][256]; //division lookuptavle;
+	for (int i = rgConvThreshold; i < 768; i++) {
+		for (int j = 0; j < 256; j++) {
+			if (i < rgConvThreshold) { 
+				divLUT[i][j] = 0;
+			}
+			else {
+				divLUT[i][j] = (j * 255) / i;
+			}
+		}
+	}
 
 	VideoCapture cap(0); //capture the video from web cam
 
@@ -387,52 +461,53 @@ int main() {
 	}
 	
 	createTrackBars();
+	Mat imgOriginal;
+	bool bSuccess = cap.read(imgOriginal);
+	imgOriginal = imread("city.jpg", CV_LOAD_IMAGE_COLOR);
+	Mat rgbNorm;
+	rgbNorm.create(imgOriginal.rows, imgOriginal.cols, CV_8UC3);
 
 	cap.set( CV_CAP_PROP_FRAME_WIDTH, 640);
 	cap.set( CV_CAP_PROP_FRAME_HEIGHT, 480);
 	startTime = ((double)getTickCount()) / getTickFrequency();
 	while (true)
 	{
-		Mat imgOriginal;
+	
 		
 		//system("CLS");
 		//cout << "TIMEKEEPING:dif	: " << tots << endl;
 		
-		bool bSuccess = cap.read(imgOriginal); // read a new frame from video
+	//	bool bSuccess = cap.read(imgOriginal); // read a new frame from video
 		
-		//imgOriginal = imread("test.png", CV_LOAD_IMAGE_COLOR);
+		//
 		/*if (!bSuccess) //if not success, break loop
 		{
 			cout << "Cannot read a frame from video stream" << endl;
 			break;
 		}*/
-		if (timeKeeping) {
-			t = ((double)getTickCount() - t) / getTickFrequency();
-			cout << "TIMEKEEPING:readCam	: " << t << endl;
-			t = (double)getTickCount();
-		}
 		
 
-		Mat rgbNorm;
-		rgbNorm.create(imgOriginal.rows, imgOriginal.cols, CV_8UC3);
-
+		
+		/*
 
 		Mat thresImg(imgOriginal.rows, imgOriginal.cols, CV_8UC1);
 
 		vector<glyphObj> blobs2;
 		vector<glyphObj> blobs;
+	
 		if (timeKeeping) {
 			t = ((double)getTickCount() - t) / getTickFrequency();
 			cout << "TIMEKEEPING:instanceMat	: " << t << endl;
 			t = (double)getTickCount();
 		}
-
-		lookUpBgr2rg(imgOriginal, rgbNorm);
+		*/
+		preLookUpBgr2rg(imgOriginal, rgbNorm, divLUT);
 	
-
+		/*
 		if (timeKeeping) {
 			t = ((double)getTickCount() - t) / getTickFrequency();
 			cout << "TIMEKEEPING:RG lookup	: " << t << endl;
+			tots += t;
 			t = (double)getTickCount();
 		}
 
@@ -472,7 +547,7 @@ int main() {
 		}
 
 
-	/*	grassFireBlobDetectionNew(thresImg2, blobs2);
+grassFireBlobDetectionNew(thresImg2, blobs2);
 
 		if (timeKeeping) {
 			t = ((double)getTickCount() - t) / getTickFrequency();
@@ -482,7 +557,7 @@ int main() {
 			t = (double)getTickCount();
 		}
 		//blob detection
-		*/
+	
 		grassFireBlobDetection(thresImg, blobs);
 
 
@@ -501,18 +576,22 @@ int main() {
 			cout << "TIMEKEEPING:BlobAnalysis: " << t << endl;
 			t = (double)getTickCount();
 		}
-
-		cv::imshow("original", imgOriginal);
+		*/
+		
 		//cv::imshow("RG NORM ", rgbNorm);
 		//cv::imshow("grassfire", thresImg);
 
-		waitKey(1);
-		t = ((double)getTickCount()) / getTickFrequency();
+		
+		
 		counter++;
-		if (counter % 200 == 0) {
+		if (counter % 10000 == 0) {
+			t = ((double)getTickCount()) / getTickFrequency();
 			cout << ((t - startTime) / counter) << endl;
 			counter = 0;
+			cv::imshow("original", rgbNorm);
+			waitKey(1);
 			startTime = ((double)getTickCount()) / getTickFrequency();
+		
 		}
 	}
 
@@ -521,8 +600,8 @@ int main() {
 
 void createTrackBars() {
 	namedWindow("Control", CV_WINDOW_AUTOSIZE);
-	cvCreateTrackbar("red", "Control", &r, 255);
-	cvCreateTrackbar("green", "Control", &g, 255);
+	cvCreateTrackbar("red color", "Control", &r, 255);
+	cvCreateTrackbar("green color", "Control", &g, 255);
 }
 
 void findBorder(int, void*, Mat src) {
