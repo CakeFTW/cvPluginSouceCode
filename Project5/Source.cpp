@@ -140,7 +140,7 @@ void grassFireBlobDetectionNew(Mat &biImg, vector<glyphObj> &blobs) {
 	}
 }
 
-void preLookUpBgr2rg(Mat &in, Mat &out, int (&divLUT)[768][256]) {
+void preLookUpBgr2rg(Mat &in, Mat &out, int (&divLUT)[766][256]) {
 	//convert to normalized rgb space
 
 	
@@ -165,6 +165,15 @@ void preLookUpBgr2rg(Mat &in, Mat &out, int (&divLUT)[768][256]) {
 			green = p[j+1];
 			red = p[j+2];
 			sum = blue + green + red;
+			if ((int)red > 255) {
+				cout << "red" << red << endl;
+			}
+			if ((int)blue > 255) {
+				cout << "blue" << blue << endl;
+			}
+			if ((int)green > 255) {
+				cout << "green" << green << endl;
+			}
 			lutptr = divLUT[sum];
 			cp[j] = *(lutptr + blue);
 			cp[j + 1] = *(lutptr + green);
@@ -440,8 +449,8 @@ int main() {
 
 	Mat cameraFrame;
 	//start by creating lookup table
-	int divLUT[768][256]; //division lookuptavle;
-	for (int i = rgConvThreshold; i < 768; i++) {
+	int divLUT[766][256]; //division lookuptavle;
+	for (int i = 0; i < 766; i++) {
 		for (int j = 0; j < 256; j++) {
 			if (i < rgConvThreshold) { 
 				divLUT[i][j] = 0;
@@ -584,11 +593,12 @@ grassFireBlobDetectionNew(thresImg2, blobs2);
 		
 		
 		counter++;
-		if (counter % 10000 == 0) {
+		if (counter % 1 == 0) {
 			t = ((double)getTickCount()) / getTickFrequency();
 			cout << ((t - startTime) / counter) << endl;
 			counter = 0;
 			cv::imshow("original", rgbNorm);
+			imwrite("cityNorm.jpg", rgbNorm);
 			waitKey(1);
 			startTime = ((double)getTickCount()) / getTickFrequency();
 		
