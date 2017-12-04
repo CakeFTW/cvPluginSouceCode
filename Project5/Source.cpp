@@ -7,14 +7,12 @@ using namespace cv;
 
 const int GRIDSIZE = 1;
 
-int r = 180;
-int g = 40;
+const int r = 180;
+const int g = 40;
 
 bool timeKeeping = false;
 const float discrimHW = 0.2;
 const int rgConvThreshold = 150;
-
-void createTrackBars();
 
 
 void findBorder(int, void*, Mat src);
@@ -141,7 +139,7 @@ void grassFireBlobDetectionNew(Mat &biImg, vector<glyphObj> &blobs) {
 	}
 }
 
-void preLookUpBgr2rg(Mat &in, Mat &out, int (&divLUT)[766][256]) {
+void preLookUpBgr2rg(Mat &in, Mat &out, uchar (&divLUT)[766][256]) {
 	//convert to normalized rgb space
 
 	
@@ -155,7 +153,7 @@ void preLookUpBgr2rg(Mat &in, Mat &out, int (&divLUT)[766][256]) {
 	uchar red;
 	uchar green;
 	uchar blue;
-	int * lutptr;
+	uchar * lutptr;
 	
 	for (int i = 0; i < nRows; i += GRIDSIZE) {
 		p = in.ptr<uchar>(i);
@@ -356,7 +354,6 @@ void blobAnalysis(vector<glyphObj> &blobs, Mat &drawImg) {
 		searchPoints.push_back(point);
 		
 		int bitCounter = 0;
-		uchar * colPtr;
 		int iterations = 0;
 		for (auto &sp : searchPoints) {
 			
@@ -387,7 +384,6 @@ void blobAnalysis(vector<glyphObj> &blobs, Mat &drawImg) {
 
 }
 
-void createTrackBars();
 void findBorder(Mat src);
 
 //Finding border edge
@@ -405,7 +401,6 @@ void thresholdSpeedy(Mat &in, Mat &out, uchar (&lookup)[256][256]) {
 
 	
 	uchar * cp;
-	uchar * lutPtr; 
 	int nRows = in.rows;
 	int nCols = in.cols;
 	uchar * p = in.ptr<uchar>(0);
@@ -434,7 +429,7 @@ int main() {
 
 	Mat cameraFrame;
 	//start by creating lookup table
-	int divLUT[766][256]; //division lookuptavle;
+	uchar divLUT[766][256]; //division lookuptavle;
 	for (int i = 0; i < 766; i++) {
 		for (int j = 0; j < 256; j++) {
 			if (i < rgConvThreshold) { 
@@ -466,10 +461,9 @@ int main() {
 		return -1;
 	}
 	
-	createTrackBars();
 	Mat imgOriginal;
 	bool bSuccess = cap.read(imgOriginal);
-	imgOriginal = imread("city.jpg", CV_LOAD_IMAGE_COLOR);
+	//imgOriginal = imread("city.jpg", CV_LOAD_IMAGE_COLOR);
 	Mat rgbNorm;
 	rgbNorm.create(imgOriginal.rows, imgOriginal.cols, CV_8UC3);
 	preLookUpBgr2rg(imgOriginal, rgbNorm, divLUT);
@@ -485,14 +479,14 @@ int main() {
 		//system("CLS");
 		//cout << "TIMEKEEPING:dif	: " << tots << endl;
 		
-		/*bool bSuccess = cap.read(imgOriginal); // read a new frame from video
+		bool bSuccess = cap.read(imgOriginal); // read a new frame from video
 		
 		
 		if (!bSuccess) //if not success, break loop
 		{
 			cout << "Cannot read a frame from video stream" << endl;
 			break;
-		}*/
+		}
 		
 
 		vector<glyphObj> blobs;
@@ -554,7 +548,7 @@ int main() {
 		
 		
 		counter++;
-		if (counter % 10000 == 0) {
+		if (counter % 1000 == 0) {
 			t = ((double)getTickCount()) / getTickFrequency();
 			cout << ((t - startTime) / counter) << endl;
 			counter = 0;
@@ -571,11 +565,6 @@ int main() {
 	return 0;
 }
 
-void createTrackBars() {
-	namedWindow("Control", CV_WINDOW_AUTOSIZE);
-	cvCreateTrackbar("red color", "Control", &r, 255);
-	cvCreateTrackbar("green color", "Control", &g, 255);
-}
 
 void findBorder(int, void*, Mat src) {
 	Mat canny_output;
