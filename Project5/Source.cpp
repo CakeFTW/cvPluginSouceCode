@@ -40,6 +40,7 @@ struct glyphObj {
 	cVector center;
 	cVector rotation;
 	int nr;
+	bool returnable = false;
 };
 
 void dropFire(uchar * pixel, glyphObj &store, int &width, int y, int x, cVector &from) {
@@ -371,10 +372,15 @@ void blobAnalysis(vector<glyphObj> &blobs, Mat &drawImg) {
 			iterations++;
 		}
 		circle(drawImg, Point(centerX - GRIDSIZE, centerY - GRIDSIZE), sqrt(searchDist), Scalar(255, 0, 255), 2);
+		if (bitCounter > 0) {
+			i.returnable = true;
+			i.nr = bitCounter;
+			putText(drawImg, to_string(bitCounter), Point(centerX, centerY - sqrt(radiusDist) - 5), FONT_HERSHEY_SIMPLEX, 1, Scalar(255, 0, 0));
+		}
+		else {
+			i.returnable = false;
+		}
 
-	
-		i.nr = bitCounter;
-		putText(drawImg, to_string(bitCounter), Point(centerX, centerY - sqrt(radiusDist) - 5), FONT_HERSHEY_SIMPLEX, 1, Scalar(255,0,0));
 		//cout << "found an object with value " << i.nr << endl;
 
 	}
@@ -395,36 +401,24 @@ vector<vector<Point>> biggestContour;
 vector<Vec4i> permHiearchy;
 
 
-void thresholdSpeedy(Mat &in, Mat &out ) {
+void thresholdSpeedy(Mat &in, Mat &out, uchar (&lookup)[256][256]) {
 
-	uchar * p;
+	
 	uchar * cp;
-	int * ip; 
+	uchar * lutPtr; 
 	int nRows = in.rows;
 	int nCols = in.cols;
-
-	int lookup[255][255];
-	int minPossibleValue = 0;
+	uchar * p = in.ptr<uchar>(0);
 
 
-	for (int i = minPossibleValue; i < 255; i++) {
-		ip = lookup[i];
-		for (int j = minPossibleValue; j < 255; j++) {
-			if (((i - g)*(i - g) + (j - r)*(j - r)) < 3600) {
-				*(ip + j) = 255;
-			}
-			else {
-				*(ip + j) = 0;
-			}
-		}
-	}
-	int color = 0;
+	int color = -3;
 	for (int i = 0; i < nRows; i+=GRIDSIZE) {
 		p = in.ptr<uchar>(i);
 		cp = out.ptr<uchar>(i);
+		color = -3;
 		for (int j = 0; j < nCols; j += GRIDSIZE) {
-			color = j * 3;
-			cp[j] = lookup[p[color + 1]][p[color + 2]];
+			color += 3;
+			cp[j] = lookup[p[color+1]][p[color+2]];
 		}
 	}
 }
@@ -452,6 +446,18 @@ int main() {
 		}
 	}
 
+
+	uchar lookup[256][256];
+	for (int i = 0; i < 256; i++) {
+		for (int j = 0; j < 255; j++) {
+			if (((i - g)*(i - g) + (j - r)*(j - r)) < 3600) {
+				lookup[i][j] = 255;
+			}
+			else {
+				lookup[i][j]= 0;
+			}
+		}
+	}
 	VideoCapture cap(0); //capture the video from web cam
 
 	if (!cap.isOpened())  // if not success, exit program
@@ -466,7 +472,9 @@ int main() {
 	imgOriginal = imread("city.jpg", CV_LOAD_IMAGE_COLOR);
 	Mat rgbNorm;
 	rgbNorm.create(imgOriginal.rows, imgOriginal.cols, CV_8UC3);
-
+	preLookUpBgr2rg(imgOriginal, rgbNorm, divLUT);
+	Mat thresImg(imgOriginal.rows, imgOriginal.cols, CV_8UC1);
+	copyMakeBorder(thresImg, thresImg, GRIDSIZE + 1, GRIDSIZE + 1, GRIDSIZE + 1, GRIDSIZE + 1, BORDER_CONSTANT, 0);
 	cap.set( CV_CAP_PROP_FRAME_WIDTH, 640);
 	cap.set( CV_CAP_PROP_FRAME_HEIGHT, 480);
 	startTime = ((double)getTickCount()) / getTickFrequency();
@@ -477,22 +485,16 @@ int main() {
 		//system("CLS");
 		//cout << "TIMEKEEPING:dif	: " << tots << endl;
 		
-	//	bool bSuccess = cap.read(imgOriginal); // read a new frame from video
+		/*bool bSuccess = cap.read(imgOriginal); // read a new frame from video
 		
-		//
-		/*if (!bSuccess) //if not success, break loop
+		
+		if (!bSuccess) //if not success, break loop
 		{
 			cout << "Cannot read a frame from video stream" << endl;
 			break;
 		}*/
 		
 
-		
-		/*
-
-		Mat thresImg(imgOriginal.rows, imgOriginal.cols, CV_8UC1);
-
-		vector<glyphObj> blobs2;
 		vector<glyphObj> blobs;
 	
 		if (timeKeeping) {
@@ -500,20 +502,20 @@ int main() {
 			cout << "TIMEKEEPING:instanceMat	: " << t << endl;
 			t = (double)getTickCount();
 		}
-		*/
+		
 		preLookUpBgr2rg(imgOriginal, rgbNorm, divLUT);
 	
-		/*
+		
 		if (timeKeeping) {
 			t = ((double)getTickCount() - t) / getTickFrequency();
 			cout << "TIMEKEEPING:RG lookup	: " << t << endl;
 			tots += t;
 			t = (double)getTickCount();
 		}
-
 		
-		thresholdSpeedy(rgbNorm, thresImg);
-
+		
+		thresholdSpeedy(rgbNorm, thresImg, lookup);
+		
 		if (timeKeeping) {
 			
 			t = ((double)getTickCount() - t) / getTickFrequency();
@@ -524,38 +526,11 @@ int main() {
 
 
 
-		copyMakeBorder(thresImg, thresImg, GRIDSIZE+1, GRIDSIZE+1, GRIDSIZE+1, GRIDSIZE+1, BORDER_CONSTANT, 0);
-		//Test border shit here
-		//findBorder(0, 0, thresImg);
-
-		if (timeKeeping) {
-			t = ((double)getTickCount() - t) / getTickFrequency();
-			cout << "TIMEKEEPING:DanielsStuf	: " << t << endl;
-			t = (double)getTickCount();
-		}
-
-
 
 		Mat element = getStructuringElement(MORPH_ELLIPSE, Size(3, 3), Point(2, 2));
 		morphologyEx(thresImg, thresImg, MORPH_DILATE, element );
 
 
-		if (timeKeeping) {
-			t = ((double)getTickCount() - t) / getTickFrequency();
-			cout << "TIMEKEEPING:MORPH	: " << t << endl;
-			t = (double)getTickCount();
-		}
-
-
-grassFireBlobDetectionNew(thresImg2, blobs2);
-
-		if (timeKeeping) {
-			t = ((double)getTickCount() - t) / getTickFrequency();
-			compa = t;
-			cout << "TIMEKEEPING:Blobnew	: " << t << endl;
-
-			t = (double)getTickCount();
-		}
 		//blob detection
 	
 		grassFireBlobDetection(thresImg, blobs);
@@ -576,21 +551,18 @@ grassFireBlobDetectionNew(thresImg2, blobs2);
 			cout << "TIMEKEEPING:BlobAnalysis: " << t << endl;
 			t = (double)getTickCount();
 		}
-		*/
-		
-		//cv::imshow("RG NORM ", rgbNorm);
-		//cv::imshow("grassfire", thresImg);
-
 		
 		
 		counter++;
-		if (counter % 1 == 0) {
+		if (counter % 10000 == 0) {
 			t = ((double)getTickCount()) / getTickFrequency();
 			cout << ((t - startTime) / counter) << endl;
 			counter = 0;
-			cv::imshow("original", rgbNorm);
-			imwrite("cityNorm.jpg", rgbNorm);
-			waitKey(1);
+			cv::imshow("original", imgOriginal);
+			cv::imshow("RG space", rgbNorm);
+			cv::imshow("Thres", thresImg);
+
+			waitKey(10);
 			startTime = ((double)getTickCount()) / getTickFrequency();
 		
 		}
